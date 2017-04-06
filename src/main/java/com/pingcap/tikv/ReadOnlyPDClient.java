@@ -56,5 +56,11 @@ public interface ReadOnlyPDClient {
      * @return the Store corresponding to the given Id
      */
     TiStore getStore(long storeId);
+
+    /**
+     * <p>Close underlining resources</p>
+     *
+     * @throws InterruptedException
+     */
     void close() throws InterruptedException;
 }

@@ -18,7 +18,6 @@ package com.pingcap.tikv;
 import com.google.common.base.Optional;
 import com.pingcap.tikv.grpc.PDGrpc;
 import com.pingcap.tikv.grpc.Pdpb;
-import io.grpc.Metadata;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;

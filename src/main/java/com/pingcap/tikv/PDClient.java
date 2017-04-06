@@ -41,6 +41,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -55,6 +56,7 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
     private RetryPolicy.Builder         retryPolicyBuilder;
     private int                         timeout;
     private TimeUnit                    timeoutUnit;
+    private ReentrantLock               leaderUpdateLock = new ReentrantLock();
 
 
     @Override
@@ -163,16 +165,22 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
     }
 
     class LeaderWrapper {
-        private final HostAndPort leaderInfo;
+        private final HostAndPort           leaderInfo;
         private final PDGrpc.PDBlockingStub blockingStub;
-        private final PDGrpc.PDStub asyncStub;
-        private final ManagedChannel channel;
+        private final PDGrpc.PDStub         asyncStub;
+        private final ManagedChannel        channel;
+        private final long                  createTime;
 
-        public LeaderWrapper(HostAndPort leaderInfo, PDGrpc.PDBlockingStub blockingStub, PDGrpc.PDStub asyncStub, ManagedChannel channel) {
+        public LeaderWrapper(HostAndPort leaderInfo,
+                             PDGrpc.PDBlockingStub blockingStub,
+                             PDGrpc.PDStub asyncStub,
+                             ManagedChannel channel,
+                             long createTime) {
             this.leaderInfo = leaderInfo;
             this.blockingStub = blockingStub;
             this.asyncStub = asyncStub;
             this.channel = channel;
+            this.createTime = createTime;
         }
 
         public HostAndPort getLeaderInfo() {
@@ -185,6 +193,10 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
 
         public PDGrpc.PDStub getAsyncStub() {
             return asyncStub;
+        }
+
+        public long getCreateTime() {
+            return createTime;
         }
 
         public void close() {
@@ -221,14 +233,21 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
     }
 
     private void updateLeader(GetMembersResponse resp) {
-        if (resp == null) return;
-        logger.debug("Updating leader...");
-
-        Member leader = resp.getLeader();
-        List<String> leaderUrls = leader.getClientUrlsList();
-        if (leaderUrls.isEmpty()) return;
-        String leaderUrlStr = leaderUrls.get(0);
+        String leaderUrlStr = "URL Not Set";
         try {
+            long ts = System.nanoTime();
+            leaderUpdateLock.lock();
+            // Lock for not flooding during pd error
+            if (leaderWrapper != null && leaderWrapper.getCreateTime() > ts) return;
+
+            if (resp == null) {
+                resp = getMembers();
+                if (resp == null) return;
+            }
+            Member leader = resp.getLeader();
+            List<String> leaderUrls = leader.getClientUrlsList();
+            if (leaderUrls.isEmpty()) return;
+            leaderUrlStr = leaderUrls.get(0);
             // TODO: Why not strip protocol info on server side since grpc does not need it
             URL tURL = new URL(leaderUrlStr);
             HostAndPort newLeader = HostAndPort.fromParts(tURL.getHost(), tURL.getPort());
@@ -241,10 +260,15 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
             leaderWrapper = new LeaderWrapper(newLeader,
                     PDGrpc.newBlockingStub(clientChannel),
                     PDGrpc.newStub(clientChannel),
-                    clientChannel);
+                    clientChannel,
+                    System.nanoTime());
             logger.info("Switched to new leader " + newLeader.toString());
         } catch (MalformedURLException e) {
             logger.error("Client URL is not valid: " + leaderUrlStr, e);
+        } catch (Exception e) {
+            logger.error("Error updating leader.", e);
+        } finally {
+            leaderUpdateLock.unlock();
         }
     }
 
@@ -273,7 +297,7 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
     private class LeaderCheckTask implements Runnable {
         @Override
         public void run() {
-            updateLeader(getMembers());
+            updateLeader(null);
         }
     }
 

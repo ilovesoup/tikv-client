@@ -30,7 +30,7 @@ public class RetryNTimes extends RetryPolicy {
 
     @Override
     protected boolean shouldRetry(Exception e) {
-        if (n-- == 0) {
+        if (--n == 0) {
             return false;
         }
         return true;

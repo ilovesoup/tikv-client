@@ -53,24 +53,25 @@ public abstract class RetryPolicy {
     }
 
     public <T> T callWithRetry(Callable<T> proc, String methodName) {
-        while (true)
-        try {
-            T result = proc.call();
-            return result;
-        } catch (Exception e) {
-            Status status = Status.fromThrowable(e);
-            logger.info(e);
-            if (checkNotRecoverableException(status) || !shouldRetry(e)) {
-                logger.error("Failed to recover from last grpc error calling %s.", methodName);
-                throw new PDGrpcException(e);
-            }
+        while (true) {
             try {
-                if (recoverMethod != null && checkNotLeaderException(status)) {
-                    recoverMethod.call();
+                T result = proc.call();
+                return result;
+            } catch (Exception e) {
+                Status status = Status.fromThrowable(e);
+                logger.info(e);
+                if (checkNotRecoverableException(status) || !shouldRetry(e)) {
+                    logger.error("Failed to recover from last grpc error calling %s.", methodName);
+                    throw new PDGrpcException(e);
                 }
-            } catch (Exception e1) {
-                // Ignore exception further spreading
-                logger.error("Error during grpc leader update.", e1);
+                try {
+                    if (recoverMethod != null && checkNotLeaderException(status)) {
+                        recoverMethod.call();
+                    }
+                } catch (Exception e1) {
+                    // Ignore exception further spreading
+                    logger.error("Error during grpc leader update.", e1);
+                }
             }
         }
     }

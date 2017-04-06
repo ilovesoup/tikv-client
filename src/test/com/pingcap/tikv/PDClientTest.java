@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 
 public class PDClientTest {
@@ -171,5 +172,35 @@ public class PDClientTest {
                 )
         ));
         assertNull(client.getStore(0));
+    }
+
+    @Test
+    public void testRetryPolicy() throws Exception {
+        long storeId = 1024;
+        server.addGetStoreResp(null);
+        server.addGetStoreResp(null);
+        server.addGetStoreResp(GrpcUtils.makeGetStoreResponse(
+                server.getClusterId(),
+                GrpcUtils.makeStore(storeId, "", Metapb.StoreState.Up)
+        ));
+        PDClient client = createClient();
+        TiStore r = client.getStore(0);
+        assertEquals(r.getId(), storeId);
+
+        // Should fail
+        server.addGetStoreResp(null);
+        server.addGetStoreResp(null);
+        server.addGetStoreResp(null);
+        server.addGetStoreResp(GrpcUtils.makeGetStoreResponse(
+                server.getClusterId(),
+                GrpcUtils.makeStore(storeId, "", Metapb.StoreState.Up)
+        ));
+        try {
+            client.getStore(0);
+        } catch (PDGrpcException e) {
+            assertTrue(true);
+            return;
+        }
+        assertTrue(false);
     }
 }

@@ -18,10 +18,10 @@ package com.pingcap.tikv;
 import com.google.common.net.HostAndPort;
 import com.google.protobuf.ByteString;
 import com.pingcap.tikv.grpc.Metapb;
-import com.pingcap.tikv.meta.TiRegion;
-import com.pingcap.tikv.meta.TiStore;
 import com.pingcap.tikv.meta.TiTimestamp;
 import com.pingcap.tikv.policy.RetryNTimes;
+import com.pingcap.tikv.grpc.Metapb.Region;
+import com.pingcap.tikv.grpc.Metapb.Store;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -97,18 +97,15 @@ public class PDClientTest {
                 )
         ));
         try (PDClient client = createClient()) {
-            TiRegion r = client.getRegionByKey(ByteString.EMPTY);
+            Region r = client.getRegionByKey(ByteString.EMPTY);
             assertEquals(r.getStartKey(), ByteString.copyFrom(startKey));
             assertEquals(r.getEndKey(), ByteString.copyFrom(endKey));
             assertEquals(r.getRegionEpoch().getConfVer(), confVer);
             assertEquals(r.getRegionEpoch().getVersion(), ver);
-            assertEquals(r.getPeers().get(0).getId(), 1);
-            assertEquals(r.getPeers().get(1).getId(), 2);
-            assertEquals(r.getPeers().get(0).getStoreId(), 10);
-            assertEquals(r.getPeers().get(1).getStoreId(), 20);
-
-            assertEquals(r.getLeader().getId(), 1);
-            assertEquals(r.getLeader().getStoreId(), 10);
+            assertEquals(r.getPeers(0).getId(), 1);
+            assertEquals(r.getPeers(1).getId(), 2);
+            assertEquals(r.getPeers(0).getStoreId(), 10);
+            assertEquals(r.getPeers(1).getStoreId(), 20);
         }
     }
 
@@ -129,18 +126,15 @@ public class PDClientTest {
                 )
         ));
         try (PDClient client = createClient()) {
-            TiRegion r = client.getRegionByID(0);
+            Region r = client.getRegionByID(0);
             assertEquals(r.getStartKey(), ByteString.copyFrom(startKey));
             assertEquals(r.getEndKey(), ByteString.copyFrom(endKey));
             assertEquals(r.getRegionEpoch().getConfVer(), confVer);
             assertEquals(r.getRegionEpoch().getVersion(), ver);
-            assertEquals(r.getPeers().get(0).getId(), 1);
-            assertEquals(r.getPeers().get(1).getId(), 2);
-            assertEquals(r.getPeers().get(0).getStoreId(), 10);
-            assertEquals(r.getPeers().get(1).getStoreId(), 20);
-
-            assertEquals(r.getLeader().getId(), 1);
-            assertEquals(r.getLeader().getStoreId(), 10);
+            assertEquals(r.getPeers(0).getId(), 1);
+            assertEquals(r.getPeers(1).getId(), 2);
+            assertEquals(r.getPeers(0).getStoreId(), 10);
+            assertEquals(r.getPeers(1).getStoreId(), 20);
         }
     }
 
@@ -158,14 +152,14 @@ public class PDClientTest {
                 )
         ));
         try (PDClient client = createClient()) {
-            TiStore r = client.getStore(0);
+            Store r = client.getStore(0);
             assertEquals(r.getId(), storeId);
             assertEquals(r.getAddress(), testAddress);
             assertEquals(r.getState(), Metapb.StoreState.Up);
-            assertEquals(r.getLabels().get(0).getKey(), "k1");
-            assertEquals(r.getLabels().get(1).getKey(), "k2");
-            assertEquals(r.getLabels().get(0).getValue(), "v1");
-            assertEquals(r.getLabels().get(1).getValue(), "v2");
+            assertEquals(r.getLabels(0).getKey(), "k1");
+            assertEquals(r.getLabels(1).getKey(), "k2");
+            assertEquals(r.getLabels(0).getValue(), "v1");
+            assertEquals(r.getLabels(1).getValue(), "v2");
 
             server.addGetStoreResp(GrpcUtils.makeGetStoreResponse(
                     server.getClusterId(),
@@ -187,7 +181,7 @@ public class PDClientTest {
                 GrpcUtils.makeStore(storeId, "", Metapb.StoreState.Up)
         ));
         try (PDClient client = createClient()) {
-            TiStore r = client.getStore(0);
+            Store r = client.getStore(0);
             assertEquals(r.getId(), storeId);
 
             // Should fail

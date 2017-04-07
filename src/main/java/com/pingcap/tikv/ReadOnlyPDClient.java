@@ -17,8 +17,8 @@ package com.pingcap.tikv;
 
 
 import com.google.protobuf.ByteString;
-import com.pingcap.tikv.meta.TiRegion;
-import com.pingcap.tikv.meta.TiStore;
+import com.pingcap.tikv.grpc.Metapb.Region;
+import com.pingcap.tikv.grpc.Metapb.Store;
 import com.pingcap.tikv.meta.TiTimestamp;
 
 /**
@@ -39,7 +39,7 @@ public interface ReadOnlyPDClient {
      * @param key key in bytes for locating a region
      * @return the region whose startKey and endKey range covers the given key
      */
-    TiRegion getRegionByKey(ByteString key);
+    Region getRegionByKey(ByteString key);
 
     /**
      * <p>Get Region by Region Id</p>
@@ -47,7 +47,7 @@ public interface ReadOnlyPDClient {
      * @param id Region Id
      * @return the region corresponding to the given Id
      */
-    TiRegion getRegionByID(long id);
+    Region getRegionByID(long id);
 
     /**
      * <p>Get Store by StoreId</p>
@@ -55,7 +55,7 @@ public interface ReadOnlyPDClient {
      * @param storeId StoreId
      * @return the Store corresponding to the given Id
      */
-    TiStore getStore(long storeId);
+    Store getStore(long storeId);
 
     /**
      * <p>Close underlining resources</p>

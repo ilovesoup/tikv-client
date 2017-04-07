@@ -25,8 +25,8 @@ import com.google.protobuf.ByteString;
 import com.pingcap.tikv.grpc.Metapb;
 import com.pingcap.tikv.grpc.PDGrpc;
 import com.pingcap.tikv.grpc.Pdpb.*;
-import com.pingcap.tikv.meta.TiRegion;
-import com.pingcap.tikv.meta.TiStore;
+import com.pingcap.tikv.grpc.Metapb.Region;
+import com.pingcap.tikv.grpc.Metapb.Store;
 import com.pingcap.tikv.meta.TiTimestamp;
 import com.pingcap.tikv.policy.RetryNTimes;
 import com.pingcap.tikv.policy.RetryPolicy;
@@ -65,18 +65,18 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
     }
 
     @Override
-    public TiRegion getRegionByKey(ByteString key) {
+    public Region getRegionByKey(ByteString key) {
         GetRegionRequest request = GetRegionRequest.newBuilder()
                 .setHeader(header)
                 .setRegionKey(key)
                 .build();
 
         GetRegionResponse resp = callWithRetry(() -> getBlockingStub().getRegion(request), "getRegionByKey");
-        return TiRegion.parseFrom(resp.getRegion(), resp.hasLeader() ? resp.getLeader() : null);
+        return resp.getRegion();
     }
 
     @Override
-    public TiRegion getRegionByID(long id) {
+    public Region getRegionByID(long id) {
         GetRegionByIDRequest request = GetRegionByIDRequest.newBuilder()
                 .setHeader(header)
                 .setRegionId(id)
@@ -84,18 +84,18 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
 
         GetRegionResponse resp = callWithRetry(() -> getBlockingStub().getRegionByID(request), "getRegionByID");
         // Instead of using default leader instance, explicitly set no leader to null
-        return TiRegion.parseFrom(resp.getRegion(), resp.hasLeader() ? resp.getLeader() : null);
+        return resp.getRegion();
     }
 
     @Override
-    public TiStore getStore(long storeId) {
+    public Store getStore(long storeId) {
         GetStoreRequest request = GetStoreRequest.newBuilder()
                 .setHeader(header)
                 .setStoreId(storeId)
                 .build();
 
         GetStoreResponse resp = callWithRetry(() -> getBlockingStub().getStore(request), "getStore");
-        TiStore store = TiStore.parseFrom(resp.getStore());
+        Store store = resp.getStore();
         if (store.getState() == Metapb.StoreState.Tombstone) {
             return null;
         }

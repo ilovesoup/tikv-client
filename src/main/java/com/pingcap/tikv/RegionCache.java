@@ -13,21 +13,10 @@
  * limitations under the License.
  */
 
-package com.pingcap.tikv.meta;
+package com.pingcap.tikv;
 
 /**
- * TiTimestamp is the timestamp returned by timestamp
- * oracle inside placement driver
+ * Created by ilovesoup1 on 07/04/2017.
  */
-public class TiTimestamp {
-    private final long physical;
-    private final long logical;
-
-    public TiTimestamp(long p, long l) {
-        this.physical = p;
-        this.logical = l;
-    }
-
-    public long getPhysical() { return this.physical; }
-    public long getLogical() { return this.logical; }
+public class RegionCache {
 }

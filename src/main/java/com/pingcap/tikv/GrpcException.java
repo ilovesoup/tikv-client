@@ -15,8 +15,8 @@
 
 package com.pingcap.tikv;
 
-public class PDGrpcException extends RuntimeException {
-    public PDGrpcException(Exception e) {
+public class GrpcException extends RuntimeException {
+    public GrpcException(Exception e) {
         super(e);
     }
 }

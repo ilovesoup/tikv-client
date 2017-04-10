@@ -16,7 +16,7 @@
 package com.pingcap.tikv.policy;
 
 import com.google.common.collect.ImmutableSet;
-import com.pingcap.tikv.PDGrpcException;
+import com.pingcap.tikv.GrpcException;
 import io.grpc.Status;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -62,7 +62,7 @@ public abstract class RetryPolicy {
                 logger.info(e);
                 if (checkNotRecoverableException(status) || !shouldRetry(e)) {
                     logger.error("Failed to recover from last grpc error calling %s.", methodName);
-                    throw new PDGrpcException(e);
+                    throw new GrpcException(e);
                 }
                 try {
                     if (recoverMethod != null && checkNotLeaderException(status)) {

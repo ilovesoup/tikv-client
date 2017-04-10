@@ -194,7 +194,7 @@ public class PDClientTest {
             ));
             try {
                 client.getStore(0);
-            } catch (PDGrpcException e) {
+            } catch (GrpcException e) {
                 assertTrue(true);
                 return;
             }

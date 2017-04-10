@@ -76,6 +76,23 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
     }
 
     @Override
+    public Future<Region> getRegionByKeyAsync(ByteString key) {
+        FutureObserver responseObserver = new FutureObserver<Region, GetRegionResponse>() {
+            @Override
+            public Region getValue(GetRegionResponse resp) {
+                return resp.getRegion();
+            }
+        };
+        GetRegionRequest request = GetRegionRequest.newBuilder()
+                .setHeader(header)
+                .setRegionKey(key)
+                .build();
+
+        getAsyncStub().getRegion(request, responseObserver);
+        return responseObserver.getFuture();
+    }
+
+    @Override
     public Region getRegionByID(long id) {
         GetRegionByIDRequest request = GetRegionByIDRequest.newBuilder()
                 .setHeader(header)
@@ -85,6 +102,23 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
         GetRegionResponse resp = callWithRetry(() -> getBlockingStub().getRegionByID(request), "getRegionByID");
         // Instead of using default leader instance, explicitly set no leader to null
         return resp.getRegion();
+    }
+
+    @Override
+    public Future<Region> getRegionByIDAsync(long id) {
+        FutureObserver responseObserver = new FutureObserver<Region, GetRegionResponse>() {
+            @Override
+            public Region getValue(GetRegionResponse resp) {
+                return resp.getRegion();
+            }
+        };
+        GetRegionByIDRequest request = GetRegionByIDRequest.newBuilder()
+                .setHeader(header)
+                .setRegionId(id)
+                .build();
+
+        getAsyncStub().getRegionByID(request, responseObserver);
+        return responseObserver.getFuture();
     }
 
     @Override
@@ -100,6 +134,27 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
             return null;
         }
         return store;
+    }
+
+    @Override
+    public Future<Store> getStoreAsync(long storeId) {
+        FutureObserver responseObserver = new FutureObserver<Store, GetStoreResponse>() {
+            @Override
+            public Store getValue(GetStoreResponse resp) {
+                Store store = resp.getStore();
+                if (store.getState() == Metapb.StoreState.Tombstone) {
+                    return null;
+                }
+                return store;
+            }
+        };
+        GetStoreRequest request = GetStoreRequest.newBuilder()
+                .setHeader(header)
+                .setStoreId(storeId)
+                .build();
+
+        getAsyncStub().getStore(request, responseObserver);
+        return responseObserver.getFuture();
     }
 
     @Override
@@ -124,33 +179,16 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
     }
 
     private TiTimestamp getTimestampHelper() throws ExecutionException, InterruptedException {
-        SettableFuture<com.pingcap.tikv.grpc.Pdpb.Timestamp> resultFuture = SettableFuture.create();
-        StreamObserver<TsoResponse> responseObserver = new StreamObserver<TsoResponse>() {
-            private SettableFuture<com.pingcap.tikv.grpc.Pdpb.Timestamp> resultFuture;
-
-            public StreamObserver<TsoResponse> bind(SettableFuture<com.pingcap.tikv.grpc.Pdpb.Timestamp> resultFuture) {
-                this.resultFuture = resultFuture;
-                return this;
-            }
-
+        FutureObserver<Timestamp, TsoResponse> responseObserver = new FutureObserver<Timestamp, TsoResponse>() {
             @Override
-            public void onNext(TsoResponse value) {
-                resultFuture.set(value.getTimestamp());
+            public Timestamp getValue(TsoResponse resp) {
+                return resp.getTimestamp();
             }
-
-            @Override
-            public void onError(Throwable t) {
-                resultFuture.setException(t);
-            }
-
-            @Override
-            public void onCompleted() {}
-
-        }.bind(resultFuture);
+        };
         StreamObserver<TsoRequest> requestObserver = getAsyncStub().tso(responseObserver);
         requestObserver.onNext(tsoReq);
         requestObserver.onCompleted();
-        com.pingcap.tikv.grpc.Pdpb.Timestamp resp = resultFuture.get();
+        com.pingcap.tikv.grpc.Pdpb.Timestamp resp = responseObserver.getFuture().get();
         return new TiTimestamp(resp.getPhysical(), resp.getLogical());
     }
 
@@ -299,6 +337,29 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
         public void run() {
             updateLeader(null);
         }
+    }
+
+    private static abstract class FutureObserver<V, T> implements StreamObserver<T> {
+        private final SettableFuture<V> resultFuture;
+
+        public FutureObserver() {
+            this.resultFuture = SettableFuture.create();
+        }
+
+        public abstract V getValue(T resp);
+
+        @Override
+        public void onNext(T resp) { resultFuture.set(getValue(resp)); }
+
+        @Override
+        public void onError(Throwable t) {
+            resultFuture.setException(t);
+        }
+
+        @Override
+        public void onCompleted() {}
+
+        public SettableFuture<V> getFuture() { return resultFuture; }
     }
 
     public static Builder newBuilder() {

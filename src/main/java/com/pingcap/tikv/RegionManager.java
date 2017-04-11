@@ -23,7 +23,6 @@ import com.google.common.collect.RangeMap;
 import com.google.common.collect.TreeRangeMap;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.protobuf.ByteString;
-import com.pingcap.tikv.grpc.Metapb;
 import com.pingcap.tikv.grpc.Metapb.Region;
 import com.pingcap.tikv.grpc.Metapb.Store;
 import com.pingcap.tikv.grpc.Metapb.Peer;
@@ -95,7 +94,7 @@ public class RegionManager {
         }
     }
 
-    public Metapb.Store getStoreById(long id) {
+    public Store getStoreById(long id) {
         try {
             return storeCache.getUnchecked(id).get();
         } catch (Exception e) {

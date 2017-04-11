@@ -41,7 +41,6 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.ReentrantLock;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -56,7 +55,6 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
     private RetryPolicy.Builder         retryPolicyBuilder;
     private int                         timeout;
     private TimeUnit                    timeoutUnit;
-    private ReentrantLock               leaderUpdateLock = new ReentrantLock();
 
 
     @Override
@@ -274,39 +272,38 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
         String leaderUrlStr = "URL Not Set";
         try {
             long ts = System.nanoTime();
-            leaderUpdateLock.lock();
-            // Lock for not flooding during pd error
-            if (leaderWrapper != null && leaderWrapper.getCreateTime() > ts) return;
+            synchronized (this) {
+                // Lock for not flooding during pd error
+                if (leaderWrapper != null && leaderWrapper.getCreateTime() > ts) return;
 
-            if (resp == null) {
-                resp = getMembers();
-                if (resp == null) return;
-            }
-            Member leader = resp.getLeader();
-            List<String> leaderUrls = leader.getClientUrlsList();
-            if (leaderUrls.isEmpty()) return;
-            leaderUrlStr = leaderUrls.get(0);
-            // TODO: Why not strip protocol info on server side since grpc does not need it
-            URL tURL = new URL(leaderUrlStr);
-            HostAndPort newLeader = HostAndPort.fromParts(tURL.getHost(), tURL.getPort());
-            if (leaderWrapper != null && newLeader.equals(leaderWrapper.getLeaderInfo())) {
-                return;
-            }
+                if (resp == null) {
+                    resp = getMembers();
+                    if (resp == null) return;
+                }
+                Member leader = resp.getLeader();
+                List<String> leaderUrls = leader.getClientUrlsList();
+                if (leaderUrls.isEmpty()) return;
+                leaderUrlStr = leaderUrls.get(0);
+                // TODO: Why not strip protocol info on server side since grpc does not need it
+                URL tURL = new URL(leaderUrlStr);
+                HostAndPort newLeader = HostAndPort.fromParts(tURL.getHost(), tURL.getPort());
+                if (leaderWrapper != null && newLeader.equals(leaderWrapper.getLeaderInfo())) {
+                    return;
+                }
 
-            // switch leader
-            ManagedChannel clientChannel = getManagedChannel(newLeader);
-            leaderWrapper = new LeaderWrapper(newLeader,
-                    PDGrpc.newBlockingStub(clientChannel),
-                    PDGrpc.newStub(clientChannel),
-                    clientChannel,
-                    System.nanoTime());
-            logger.info("Switched to new leader " + newLeader.toString());
+                // switch leader
+                ManagedChannel clientChannel = getManagedChannel(newLeader);
+                leaderWrapper = new LeaderWrapper(newLeader,
+                        PDGrpc.newBlockingStub(clientChannel),
+                        PDGrpc.newStub(clientChannel),
+                        clientChannel,
+                        System.nanoTime());
+                logger.info("Switched to new leader " + newLeader.toString());
+            }
         } catch (MalformedURLException e) {
             logger.error("Client URL is not valid: " + leaderUrlStr, e);
         } catch (Exception e) {
             logger.error("Error updating leader.", e);
-        } finally {
-            leaderUpdateLock.unlock();
         }
     }
 

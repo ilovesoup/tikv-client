@@ -89,6 +89,7 @@ public class PDClientTest {
         server.addGetRegionResp(GrpcUtils.makeGetRegionResponse(
                 server.getClusterId(),
                 GrpcUtils.makeRegion(
+                        1,
                         ByteString.copyFrom(startKey),
                         ByteString.copyFrom(endKey),
                         GrpcUtils.makeRegionEpoch(confVer, ver),
@@ -118,6 +119,7 @@ public class PDClientTest {
         server.addGetRegionResp(GrpcUtils.makeGetRegionResponse(
                 server.getClusterId(),
                 GrpcUtils.makeRegion(
+                        1,
                         ByteString.copyFrom(startKey),
                         ByteString.copyFrom(endKey),
                         GrpcUtils.makeRegionEpoch(confVer, ver),
@@ -147,6 +149,7 @@ public class PDClientTest {
         server.addGetRegionByIDResp(GrpcUtils.makeGetRegionResponse(
                 server.getClusterId(),
                 GrpcUtils.makeRegion(
+                        1,
                         ByteString.copyFrom(startKey),
                         ByteString.copyFrom(endKey),
                         GrpcUtils.makeRegionEpoch(confVer, ver),
@@ -176,6 +179,7 @@ public class PDClientTest {
         server.addGetRegionByIDResp(GrpcUtils.makeGetRegionResponse(
                 server.getClusterId(),
                 GrpcUtils.makeRegion(
+                        1,
                         ByteString.copyFrom(startKey),
                         ByteString.copyFrom(endKey),
                         GrpcUtils.makeRegionEpoch(confVer, ver),

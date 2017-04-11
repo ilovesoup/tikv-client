@@ -43,7 +43,7 @@ public class RegionManager {
 
     // To avoid double retrieval, we used the async version of grpc
     // When rpc not returned, instead of call again, it wait for previous one done
-    private RegionManager(ReadOnlyPDClient pdClient) {
+    public RegionManager(ReadOnlyPDClient pdClient) {
         this.pdClient = pdClient;
         regionCache = CacheBuilder.newBuilder()
                 .maximumSize(MAX_CACHE_CAPACITY)
@@ -63,14 +63,25 @@ public class RegionManager {
         keyToRegionIdCache =  TreeRangeMap.create();
     }
 
-    private boolean ifValidRegion(Region region) {
-        if (region.getPeersCount() == 0 ||
-                !region.hasStartKey() ||
-                !region.hasEndKey()) {
-            return false;
+    public Region getRegionByKey(ByteString key) {
+        Long regionId;
+        try {
+            lock.readLock().lock();
+            regionId = keyToRegionIdCache.get(key.asReadOnlyByteBuffer());
+        } finally {
+            lock.readLock().unlock();
         }
-        return true;
+
+        if (regionId == null) {
+            Region region = pdClient.getRegionByKey(key);
+            if (!putRegion(region)) {
+                throw new TiClientInternalException("Invalid Region: " + region.toString());
+            }
+            return region;
+        }
+        return getRegionById(regionId);
     }
+
 
     public void invalidateRegion(Region r) {
         regionCache.invalidate(r);
@@ -102,6 +113,15 @@ public class RegionManager {
         }
     }
 
+    private boolean ifValidRegion(Region region) {
+        if (region.getPeersCount() == 0 ||
+                !region.hasStartKey() ||
+                !region.hasEndKey()) {
+            return false;
+        }
+        return true;
+    }
+
     private boolean putRegion(Region region) {
         if (!region.hasStartKey() || !region.hasEndKey()) return false;
 
@@ -111,31 +131,12 @@ public class RegionManager {
 
         try {
             lock.writeLock().lock();
-            keyToRegionIdCache.put(Range.openClosed(region.getStartKey().asReadOnlyByteBuffer(),
-                    region.getEndKey().asReadOnlyByteBuffer()),
-                    region.getId());
+            keyToRegionIdCache.put(Range.closedOpen(region.getStartKey().asReadOnlyByteBuffer(),
+                                                    region.getEndKey().asReadOnlyByteBuffer()),
+                                                    region.getId());
         } finally {
             lock.writeLock().lock();
         }
         return true;
-    }
-
-    public Region getRegionByKey(ByteString key) {
-        Long regionId;
-        try {
-            lock.readLock().lock();
-            regionId = keyToRegionIdCache.get(key.asReadOnlyByteBuffer());
-        } finally {
-            lock.readLock().unlock();
-        }
-
-        if (regionId == null) {
-            Region region = getRegionByKey(key);
-            if (!putRegion(region)) {
-                throw new TiClientInternalException("Region invalid: " + region.toString());
-            }
-            return region;
-        }
-        return getRegionById(regionId);
     }
 }

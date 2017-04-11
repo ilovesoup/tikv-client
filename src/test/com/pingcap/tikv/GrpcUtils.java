@@ -70,8 +70,9 @@ public class GrpcUtils {
                 .build();
     }
 
-    public static Region makeRegion(ByteString startKey, ByteString endKey, RegionEpoch re, Peer ...peers) {
+    public static Region makeRegion(long id, ByteString startKey, ByteString endKey, RegionEpoch re, Peer ...peers) {
         return Region.newBuilder()
+                .setId(id)
                 .setStartKey(startKey)
                 .setEndKey(endKey)
                 .setRegionEpoch(re)

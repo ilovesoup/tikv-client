@@ -94,13 +94,36 @@ public class RegionManagerTest {
     }
 
     @Test
-    public void invalidateRegion() throws Exception {
-
-    }
-
-    @Test
     public void getStoreByKey() throws Exception {
-
+        RegionManager mgr = new RegionManager(createClient());
+        ByteString startKey = ByteString.copyFrom(new byte[]{1});
+        ByteString endKey = ByteString.copyFrom(new byte[]{10});
+        ByteString searchKey = ByteString.copyFrom(new byte[]{5});
+        String testAddress = "testAddress";
+        long storeId = 233;
+        int confVer = 1026;
+        int ver = 1027;
+        long regionId = 233;
+        server.addGetRegionResp(GrpcUtils.makeGetRegionResponse(
+                server.getClusterId(),
+                GrpcUtils.makeRegion(
+                        regionId,
+                        startKey, endKey,
+                        GrpcUtils.makeRegionEpoch(confVer, ver),
+                        GrpcUtils.makePeer(storeId, 10),
+                        GrpcUtils.makePeer(storeId + 1, 20)
+                )
+        ));
+        server.addGetStoreResp(GrpcUtils.makeGetStoreResponse(
+                server.getClusterId(),
+                GrpcUtils.makeStore(storeId, testAddress,
+                        Metapb.StoreState.Up,
+                        GrpcUtils.makeStoreLabel("k1", "v1"),
+                        GrpcUtils.makeStoreLabel("k2", "v2")
+                )
+        ));
+        Store store = mgr.getStoreByKey(searchKey);
+        assertEquals(store.getId(), storeId);
     }
 
     @Test
@@ -129,10 +152,12 @@ public class RegionManagerTest {
         Region regionToSearch = mgr.getRegionById(regionId);
         assertEquals(region, regionToSearch);
 
+        mgr.invalidateRegion(regionId);
+
         // This will in turn invoke rpc and results in an error
         // since we set just one rpc response
         try {
-            mgr.getRegionById(666);
+            mgr.getRegionById(regionId);
             fail();
         } catch (Exception e) {}
     }
@@ -162,6 +187,12 @@ public class RegionManagerTest {
                 )
         ));
         assertNull(mgr.getStoreById(storeId + 1));
+
+        mgr.invalidateStore(storeId);
+        try {
+            mgr.getStoreById(storeId);
+            fail();
+        } catch (Exception e) {}
     }
 
 }

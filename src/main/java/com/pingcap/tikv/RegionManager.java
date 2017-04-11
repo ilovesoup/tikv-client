@@ -65,8 +65,8 @@ public class RegionManager {
 
     public Region getRegionByKey(ByteString key) {
         Long regionId;
+        lock.readLock().lock();
         try {
-            lock.readLock().lock();
             regionId = keyToRegionIdCache.get(key.asReadOnlyByteBuffer());
         } finally {
             lock.readLock().unlock();
@@ -83,8 +83,21 @@ public class RegionManager {
     }
 
 
-    public void invalidateRegion(Region r) {
-        regionCache.invalidate(r);
+    public void invalidateRegion(long regionId) {
+        lock.writeLock().lock();
+        try {
+            Region region = regionCache.getUnchecked(regionId).get();
+            keyToRegionIdCache.remove(makeRange(region.getStartKey(),
+                                                region.getEndKey()));
+        } catch (Exception ignore) {
+        } finally {
+            lock.writeLock().unlock();
+            regionCache.invalidate(regionId);
+        }
+    }
+
+    public void invalidateStore(long storeId) {
+        storeCache.invalidate(storeId);
     }
 
     public Store getStoreByKey(ByteString key) {
@@ -129,14 +142,18 @@ public class RegionManager {
         regionFuture.set(region);
         regionCache.put(region.getId(), regionFuture);
 
+        lock.writeLock().lock();
         try {
-            lock.writeLock().lock();
-            keyToRegionIdCache.put(Range.closedOpen(region.getStartKey().asReadOnlyByteBuffer(),
-                                                    region.getEndKey().asReadOnlyByteBuffer()),
-                                                    region.getId());
+            keyToRegionIdCache.put(makeRange(region.getStartKey(), region.getEndKey()),
+                                             region.getId());
         } finally {
             lock.writeLock().lock();
         }
         return true;
+    }
+
+    private static Range<ByteBuffer> makeRange(ByteString startKey, ByteString endKey) {
+        return Range.closedOpen(startKey.asReadOnlyByteBuffer(),
+                                endKey.asReadOnlyByteBuffer());
     }
 }

@@ -13,14 +13,18 @@
  * limitations under the License.
  */
 
-package com.pingcap.tikv;
+package com.pingcap.tikv.util;
 
-public class TiClientInternalException extends RuntimeException {
-    public TiClientInternalException(String msg) {
-        super(msg);
+
+public class Pair<F, S> {
+    public final F first;
+    public final S second;
+    public Pair(F f, S s) {
+        first = f;
+        second = s;
     }
 
-    public TiClientInternalException(String msg, Throwable t) {
-        super(msg, t);
+    public static <F, S> Pair<F, S> create(F f, S s) {
+        return new Pair(f, s);
     }
 }

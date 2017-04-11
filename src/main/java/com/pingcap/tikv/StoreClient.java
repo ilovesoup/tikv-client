@@ -47,14 +47,21 @@ public class StoreClient implements AutoCloseable {
     private RetryPolicy.Builder             retryPolicyBuilder;
     private int                             timeout;
     private TimeUnit                        timeoutUnit;
+    private Context                         context;
 
-    private StoreClient(int timeout, TimeUnit timeoutUnit, RetryPolicy.Builder retryPolicyBuilder,
+    private StoreClient(Region region, int timeout, TimeUnit timeoutUnit,
+                        RetryPolicy.Builder retryPolicyBuilder,
                         ManagedChannel channel, TiKVGrpc.TiKVBlockingStub blockingStub) {
         this.timeout = timeout;
         this.timeoutUnit = timeoutUnit;
         this.retryPolicyBuilder = retryPolicyBuilder;
         this.channel = channel;
         this.blockingStub = blockingStub;
+        this.context = Context.newBuilder()
+                              .setRegionId(region.getId())
+                              .setRegionEpoch(region.getRegionEpoch())
+                              .setPeer(region.getPeers(0))
+                              .build();
     }
 
     private TiKVGrpc.TiKVBlockingStub getBlockingStub() {
@@ -66,17 +73,9 @@ public class StoreClient implements AutoCloseable {
         return retryPolicyBuilder.create(null).callWithRetry(proc, methodName);
     }
 
-    private Context getContext(Region region) {
-        return Context.newBuilder()
-                .setRegionId(region.getId())
-                .setRegionEpoch(region.getRegionEpoch())
-                .setPeer(region.getPeers(0))
-                .build();
-    }
-
-    public ByteString get(Region region, ByteString key, long version) {
+    public ByteString get(ByteString key, long version) {
         GetRequest request = GetRequest.newBuilder()
-                .setContext(getContext(region))
+                .setContext(context)
                 .setKey(key)
                 .setVersion(version)
                 .build();
@@ -84,9 +83,9 @@ public class StoreClient implements AutoCloseable {
         return resp.getValue();
     }
 
-    public List<KvPair> batchGet(Region region, Iterable<ByteString> keys, long version) {
+    public List<KvPair> batchGet(Iterable<ByteString> keys, long version) {
         BatchGetRequest request = BatchGetRequest.newBuilder()
-                .setContext(getContext(region))
+                .setContext(context)
                 .addAllKeys(keys)
                 .setVersion(version)
                 .build();
@@ -94,13 +93,13 @@ public class StoreClient implements AutoCloseable {
         return resp.getPairsList();
     }
 
-    public List<KvPair> scan(Region region, ByteString startKey, long version) {
-        return scan(region, startKey, version, false);
+    public List<KvPair> scan(ByteString startKey, long version) {
+        return scan(startKey, version, false);
     }
 
-    public List<KvPair> scan(Region region, ByteString startKey, long version, boolean keyOnly) {
+    public List<KvPair> scan(ByteString startKey, long version, boolean keyOnly) {
         ScanRequest request = ScanRequest.newBuilder()
-                .setContext(getContext(region))
+                .setContext(context)
                 .setStartKey(startKey)
                 .setVersion(version)
                 .setKeyOnly(keyOnly)
@@ -112,6 +111,10 @@ public class StoreClient implements AutoCloseable {
     @Override
     public void close() throws Exception {
         channel.shutdown();
+    }
+
+    public static Builder newBuilder() {
+        return new Builder();
     }
 
     public static class Builder {
@@ -134,7 +137,7 @@ public class StoreClient implements AutoCloseable {
             return this;
         }
 
-        private StoreClient build(Store store) {
+        public StoreClient build(Region region, Store store) {
             StoreClient client = null;
             try {
                 HostAndPort address = HostAndPort.fromString(store.getAddress());
@@ -143,7 +146,7 @@ public class StoreClient implements AutoCloseable {
                         .usePlaintext(true)
                         .build();
                 TiKVGrpc.TiKVBlockingStub blockingStub = TiKVGrpc.newBlockingStub(channel);
-                client = new StoreClient(timeout, timeoutUnit, builder, channel, blockingStub);
+                client = new StoreClient(region, timeout, timeoutUnit, builder, channel, blockingStub);
             } catch (Exception e) {
                 if (client != null) {
                     try {

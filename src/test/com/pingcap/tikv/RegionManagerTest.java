@@ -19,6 +19,7 @@ import com.google.protobuf.ByteString;
 import com.pingcap.tikv.grpc.Metapb;
 import com.pingcap.tikv.grpc.Metapb.*;
 import com.pingcap.tikv.policy.RetryNTimes;
+import com.pingcap.tikv.util.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -122,8 +123,9 @@ public class RegionManagerTest {
                         GrpcUtils.makeStoreLabel("k2", "v2")
                 )
         ));
-        Store store = mgr.getStoreByKey(searchKey);
-        assertEquals(store.getId(), storeId);
+        Pair<Region, Store> pair = mgr.getRegionStorePairByKey(searchKey);
+        assertEquals(pair.first.getId(), regionId);
+        assertEquals(pair.first.getId(), storeId);
     }
 
     @Test

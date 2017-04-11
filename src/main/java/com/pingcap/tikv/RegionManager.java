@@ -26,6 +26,7 @@ import com.google.protobuf.ByteString;
 import com.pingcap.tikv.grpc.Metapb.Region;
 import com.pingcap.tikv.grpc.Metapb.Store;
 import com.pingcap.tikv.grpc.Metapb.Peer;
+import com.pingcap.tikv.util.Pair;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.Future;
@@ -100,14 +101,14 @@ public class RegionManager {
         storeCache.invalidate(storeId);
     }
 
-    public Store getStoreByKey(ByteString key) {
+    public Pair<Region, Store> getRegionStorePairByKey(ByteString key) {
         Region region = getRegionByKey(key);
         if (!ifValidRegion(region)) {
             throw new TiClientInternalException("Region invalid: " + region.toString());
         }
         Peer leader = region.getPeers(0);
         long storeId = leader.getStoreId();
-        return getStoreById(storeId);
+        return Pair.create(region, getStoreById(storeId));
     }
 
     public Region getRegionById(long id) {

@@ -24,8 +24,8 @@ public class FutureObserver<V, T> implements StreamObserver<T> {
     private final SettableFuture<V> resultFuture;
     private final Getter<V, T> getter;
 
-    public interface Getter<VG, TG> {
-        public VG getValue(TG resp);
+    public interface Getter<V, T> {
+        V getValue(T resp);
     }
 
     public FutureObserver(Getter<V, T> getter) {

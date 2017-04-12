@@ -30,32 +30,26 @@ import com.pingcap.tikv.grpc.Metapb.Region;
 import com.pingcap.tikv.grpc.Metapb.Store;
 import com.pingcap.tikv.grpc.TiKVGrpc;
 import com.pingcap.tikv.util.FutureObserver;
-import com.pingcap.tikv.util.VoidCallable;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
-public class RegionStoreClient implements AutoCloseable {
+public class RegionStoreClient extends AbstractGrpcClient<TiKVGrpc.TiKVBlockingStub, TiKVGrpc.TiKVStub> {
     private static final Logger             logger = LogManager.getFormatterLogger(RegionStoreClient.class);
+    private Context                         context;
     private final TiKVGrpc.TiKVBlockingStub blockingStub;
     private final TiKVGrpc.TiKVStub         asyncStub;
     private final ManagedChannel            channel;
-    private Context                         context;
-    private TiSession                       session;
-    private TiConfiguration                 conf;
 
     private RegionStoreClient(Region region, TiSession session,
                               ManagedChannel channel,
                               TiKVGrpc.TiKVBlockingStub blockingStub,
                               TiKVGrpc.TiKVStub   asyncStub) {
-        this.session = session;
-        this.conf = session.getConf();
+        super(session);
         this.channel = channel;
         this.blockingStub = blockingStub;
         this.asyncStub = asyncStub;
@@ -66,26 +60,14 @@ public class RegionStoreClient implements AutoCloseable {
                               .build();
     }
 
-    private TiKVGrpc.TiKVBlockingStub getBlockingStub() {
+    protected TiKVGrpc.TiKVBlockingStub getBlockingStub() {
         return blockingStub.withDeadlineAfter(getConf().getTimeout(),
-                                              getConf().getTimeoutUnit());
+                getConf().getTimeoutUnit());
     }
 
-    private TiKVGrpc.TiKVStub getAsyncStub() {
+    protected TiKVGrpc.TiKVStub getAsyncStub() {
         return asyncStub.withDeadlineAfter(getConf().getTimeout(),
-                                           getConf().getTimeoutUnit());
-    }
-
-    private <T> T callWithRetry(Callable<T> proc, String methodName) {
-        return getSession()
-                .getRetryPolicyBuilder()
-                .create(null).callWithRetry(proc, methodName);
-    }
-
-    private void callAsyncWithRetry(VoidCallable proc, String methodName) {
-        getSession()
-                .getRetryPolicyBuilder()
-                .create(null).callWithRetry(() -> { proc.call(); return null; }, methodName);
+                getConf().getTimeoutUnit());
     }
 
     public ByteString get(ByteString key, long version) {
@@ -94,7 +76,7 @@ public class RegionStoreClient implements AutoCloseable {
                 .setKey(key)
                 .setVersion(version)
                 .build();
-        GetResponse resp = callWithRetry(() -> getBlockingStub().kvGet(request), "kvGet");
+        GetResponse resp = callWithRetry(TiKVGrpc.METHOD_KV_GET, request);
         return resp.getValue();
     }
 
@@ -107,7 +89,7 @@ public class RegionStoreClient implements AutoCloseable {
                 .setVersion(version)
                 .build();
 
-        callAsyncWithRetry(() -> getAsyncStub().kvGet(request, responseObserver), "getAsync");
+        callAsyncWithRetry(TiKVGrpc.METHOD_KV_GET, request, responseObserver);
         return responseObserver.getFuture();
     }
 
@@ -117,7 +99,7 @@ public class RegionStoreClient implements AutoCloseable {
                 .addAllKeys(keys)
                 .setVersion(version)
                 .build();
-        BatchGetResponse resp = callWithRetry(() -> getBlockingStub().kvBatchGet(request), "kvBatchGet");
+        BatchGetResponse resp = callWithRetry(TiKVGrpc.METHOD_KV_BATCH_GET, request);
         return resp.getPairsList();
     }
 
@@ -131,7 +113,7 @@ public class RegionStoreClient implements AutoCloseable {
                 .setVersion(version)
                 .build();
 
-        callAsyncWithRetry(() -> getAsyncStub().kvBatchGet(request, responseObserver), "batchGetAsync");
+        callAsyncWithRetry(TiKVGrpc.METHOD_KV_BATCH_GET, request, responseObserver);
         return responseObserver.getFuture();
     }
 
@@ -150,7 +132,7 @@ public class RegionStoreClient implements AutoCloseable {
                 .setVersion(version)
                 .setKeyOnly(keyOnly)
                 .build();
-        ScanResponse resp = callWithRetry(() -> getBlockingStub().kvScan(request), "kvScan");
+        ScanResponse resp = callWithRetry(TiKVGrpc.METHOD_KV_SCAN, request);
         return resp.getPairsList();
     }
 
@@ -165,21 +147,13 @@ public class RegionStoreClient implements AutoCloseable {
                 .setKeyOnly(keyOnly)
                 .build();
 
-        callAsyncWithRetry(() -> getAsyncStub().kvScan(request, responseObserver), "scanAsync");
+        callAsyncWithRetry(TiKVGrpc.METHOD_KV_SCAN, request, responseObserver);
         return responseObserver.getFuture();
     }
 
     @Override
     public void close() throws Exception {
         channel.shutdown();
-    }
-
-    public TiSession getSession() {
-        return session;
-    }
-
-    public TiConfiguration getConf() {
-        return conf;
     }
 
     public static RegionStoreClient create(Region region, Store store, TiSession session) {

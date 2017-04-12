@@ -25,7 +25,6 @@ import com.pingcap.tikv.grpc.Metapb.Region;
 import com.pingcap.tikv.grpc.Metapb.Store;
 import com.pingcap.tikv.meta.TiTimestamp;
 import com.pingcap.tikv.util.FutureObserver;
-import com.pingcap.tikv.util.VoidCallable;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
@@ -40,18 +39,30 @@ import java.util.concurrent.*;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class PDClient implements AutoCloseable, ReadOnlyPDClient {
+public class PDClient extends AbstractGrpcClient<PDGrpc.PDBlockingStub, PDGrpc.PDStub> implements ReadOnlyPDClient {
     private static final Logger         logger = LogManager.getFormatterLogger(PDClient.class);
     private RequestHeader               header;
     private TsoRequest                  tsoReq;
     private volatile LeaderWrapper      leaderWrapper;
     private ScheduledExecutorService    service;
-    private TiSession                   session;
-    private TiConfiguration             conf;
 
     @Override
     public TiTimestamp getTimestamp() {
-        return callWithRetry(() -> getTimestampHelper(), "getTimestamp");
+        FutureObserver<Timestamp, TsoResponse> responseObserver =
+                new FutureObserver<>((TsoResponse resp) -> resp.getTimestamp());
+        StreamObserver<TsoRequest> requestObserver = callBidiStreamingWithRetry(PDGrpc.METHOD_TSO, responseObserver);
+
+        requestObserver.onNext(tsoReq);
+        requestObserver.onCompleted();
+        try {
+            Timestamp resp = responseObserver.getFuture().get();
+            return new TiTimestamp(resp.getPhysical(), resp.getLogical());
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            throw new GrpcException(e);
+        }
+        return null;
     }
 
     @Override
@@ -61,8 +72,7 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
                 .setRegionKey(key)
                 .build();
 
-        GetRegionResponse resp =
-                callWithRetry(() -> getBlockingStub().getRegion(request), "getRegionByKey");
+        GetRegionResponse resp = callWithRetry(PDGrpc.METHOD_GET_REGION, request);
         return resp.getRegion();
     }
 
@@ -75,7 +85,7 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
                 .setRegionKey(key)
                 .build();
 
-        callAsyncWithRetry(() -> getAsyncStub().getRegion(request, responseObserver), "getRegion");
+        callAsyncWithRetry(PDGrpc.METHOD_GET_REGION, request, responseObserver);
         return responseObserver.getFuture();
     }
 
@@ -86,7 +96,7 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
                 .setRegionId(id)
                 .build();
 
-        GetRegionResponse resp = callWithRetry(() -> getBlockingStub().getRegionByID(request), "getRegionByID");
+        GetRegionResponse resp = callWithRetry(PDGrpc.METHOD_GET_REGION_BY_ID, request);
         // Instead of using default leader instance, explicitly set no leader to null
         return resp.getRegion();
     }
@@ -101,7 +111,7 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
                 .setRegionId(id)
                 .build();
 
-        callAsyncWithRetry(() -> getAsyncStub().getRegionByID(request, responseObserver), "getRegionByID");
+        callAsyncWithRetry(PDGrpc.METHOD_GET_REGION_BY_ID, request, responseObserver);
         return responseObserver.getFuture();
     }
 
@@ -112,8 +122,7 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
                 .setStoreId(storeId)
                 .build();
 
-        GetStoreResponse resp =
-                callWithRetry(() -> getBlockingStub().getStore(request), "getStore");
+        GetStoreResponse resp = callWithRetry(PDGrpc.METHOD_GET_STORE, request);
         Store store = resp.getStore();
         if (store.getState() == Metapb.StoreState.Tombstone) {
             return null;
@@ -137,7 +146,7 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
                 .setStoreId(storeId)
                 .build();
 
-        callAsyncWithRetry(() -> getAsyncStub().getStore(request, responseObserver), "getStore");
+        callAsyncWithRetry(PDGrpc.METHOD_GET_STORE, request, responseObserver);
         return responseObserver.getFuture();
     }
 
@@ -151,44 +160,13 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
         }
     }
 
-    @Override
-    public TiSession getSession() {
-        return session;
-    }
-
-    public TiConfiguration getConf() {
-        return conf;
-    }
-
     public static ReadOnlyPDClient create(TiSession session) {
         return createRaw(session);
     }
 
-    private PDClient(TiSession session) {
-        this.session = session;
-        this.conf = session.getConf();
-    }
-
-    // TODO: Change to Grpc's MethodDescriptor maybe?
-    private <T> T callWithRetry(Callable<T> proc, String methodName) {
-        return getSession().getRetryPolicyBuilder()
-                .create(() -> { updateLeader(getMembers()); return null; })
-                .callWithRetry(proc, methodName);
-    }
-
-    private void callAsyncWithRetry(VoidCallable proc, String methodName) {
-        getSession().getRetryPolicyBuilder()
-                .create(null).callWithRetry(() -> { proc.call(); return null; }, methodName);
-    }
-
-    private TiTimestamp getTimestampHelper() throws ExecutionException, InterruptedException {
-        FutureObserver<Timestamp, TsoResponse> responseObserver =
-                            new FutureObserver<>((TsoResponse resp) -> resp.getTimestamp());
-        StreamObserver<TsoRequest> requestObserver = getAsyncStub().tso(responseObserver);
-        requestObserver.onNext(tsoReq);
-        requestObserver.onCompleted();
-        Timestamp resp = responseObserver.getFuture().get();
-        return new TiTimestamp(resp.getPhysical(), resp.getLogical());
+    @Override
+    protected Callable<Void> getRecoveryMethod() {
+        return () -> { updateLeader(getMembers()); return null; };
     }
 
     @VisibleForTesting
@@ -310,16 +288,22 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
         }
     }
 
-    private PDGrpc.PDBlockingStub getBlockingStub() {
+    @Override
+    protected PDGrpc.PDBlockingStub getBlockingStub() {
         return leaderWrapper.getBlockingStub()
                             .withDeadlineAfter(getConf().getTimeout(),
                                                getConf().getTimeoutUnit());
     }
 
-    private PDGrpc.PDStub getAsyncStub() {
+    @Override
+    protected PDGrpc.PDStub getAsyncStub() {
         return leaderWrapper.getAsyncStub()
                             .withDeadlineAfter(getConf().getTimeout(),
                                                getConf().getTimeoutUnit());
+    }
+
+    private PDClient(TiSession session) {
+        super(session);
     }
 
     private void initCluster() {

@@ -15,6 +15,7 @@
 
 package com.pingcap.tikv;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.net.HostAndPort;
 import com.google.protobuf.ByteString;
 import com.pingcap.tikv.grpc.Metapb;
@@ -56,11 +57,10 @@ public class PDClientTest {
                 GrpcUtils.makeMember(2, "http://" + LOCAL_ADDR + ":" + (server.port + 1)),
                 GrpcUtils.makeMember(2, "http://" + LOCAL_ADDR + ":" + (server.port + 2))
         ));
+        Configuration conf = Configuration.createDefault(ImmutableList.of("127.0.0.1:" + server.port));
+        TiSession session = TiSession.create(conf);
         return PDClient.newBuilder()
-                .setRetryPolicyBuilder(RetryNTimes.newBuilder(3))
-                .addAddress("127.0.0.1:" + server.port)
-                .setTimeout(1, TimeUnit.SECONDS)
-                .buildRaw();
+                .buildRaw(session);
     }
 
     @Test

@@ -48,15 +48,12 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 public class PDClient implements AutoCloseable, ReadOnlyPDClient {
     private static final Logger         logger = LogManager.getFormatterLogger(PDClient.class);
-    private List<HostAndPort>           pdUrls;
     private RequestHeader               header;
     private TsoRequest                  tsoReq;
     private volatile LeaderWrapper      leaderWrapper;
     private ScheduledExecutorService    service;
-    private RetryPolicy.Builder         retryPolicyBuilder;
-    private int                         timeout;
-    private TimeUnit                    timeoutUnit;
-
+    private TiSession                   session;
+    private Configuration               conf;
 
     @Override
     public TiTimestamp getTimestamp() {
@@ -70,7 +67,8 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
                 .setRegionKey(key)
                 .build();
 
-        GetRegionResponse resp = callWithRetry(() -> getBlockingStub().getRegion(request), "getRegionByKey");
+        GetRegionResponse resp =
+                callWithRetry(() -> getBlockingStub().getRegion(request), "getRegionByKey");
         return resp.getRegion();
     }
 
@@ -120,7 +118,8 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
                 .setStoreId(storeId)
                 .build();
 
-        GetStoreResponse resp = callWithRetry(() -> getBlockingStub().getStore(request), "getStore");
+        GetStoreResponse resp =
+                callWithRetry(() -> getBlockingStub().getStore(request), "getStore");
         Store store = resp.getStore();
         if (store.getState() == Metapb.StoreState.Tombstone) {
             return null;
@@ -158,19 +157,21 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
         }
     }
 
-    private PDClient(int timeout, TimeUnit timeoutUnit, RetryPolicy.Builder retryPolicyBuilder) {
-        this.timeout = timeout;
-        this.timeoutUnit = timeoutUnit;
-        this.retryPolicyBuilder = retryPolicyBuilder;
+    private PDClient(TiSession session) {
+        this.session = session;
+        this.conf = session.getConf();
     }
 
+    // TODO: Change to Grpc's MethodDescriptor maybe?
     private <T> T callWithRetry(Callable<T> proc, String methodName) {
-        return retryPolicyBuilder.create(() -> { updateLeader(getMembers()); return null; })
+        return session.getRetryPolicyBuilder()
+                .create(() -> { updateLeader(getMembers()); return null; })
                 .callWithRetry(proc, methodName);
     }
 
     private void callAsyncWithRetry(VoidCallable proc, String methodName) {
-        retryPolicyBuilder.create(null).callWithRetry(() -> { proc.call(); return null; }, methodName);
+        session.getRetryPolicyBuilder()
+                .create(null).callWithRetry(() -> { proc.call(); return null; }, methodName);
     }
 
     private TiTimestamp getTimestampHelper() throws ExecutionException, InterruptedException {
@@ -241,7 +242,9 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
     }
 
     private GetMembersResponse getMembers() {
-        for (HostAndPort url : pdUrls) {
+        List<HostAndPort> pdAddrs = conf.getPdAddrs();
+        checkArgument(pdAddrs.size() > 0, "No PD address specified.");
+        for (HostAndPort url : pdAddrs) {
             ManagedChannel probChan = null;
             try {
                 probChan = getManagedChannel(url);
@@ -302,16 +305,15 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
 
     private PDGrpc.PDBlockingStub getBlockingStub() {
         return leaderWrapper.getBlockingStub()
-                            .withDeadlineAfter(timeout, timeoutUnit);
+                            .withDeadlineAfter(conf.getTimeout(), conf.getTimeoutUnit());
     }
 
     private PDGrpc.PDStub getAsyncStub() {
         return leaderWrapper.getAsyncStub()
-                            .withDeadlineAfter(timeout, timeoutUnit);
+                            .withDeadlineAfter(conf.getTimeout(), conf.getTimeoutUnit());
     }
 
-    private void initCluster(List<HostAndPort> urls) {
-        pdUrls = urls;
+    private void initCluster() {
         GetMembersResponse resp = getMembers();
         checkNotNull(resp, "Failed to init client for PD cluster.");
         long clusterId = resp.getHeader().getClusterId();
@@ -334,49 +336,20 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
     }
 
     public static class Builder {
-        public static final int DEF_TIMEOUT = 3;
-        public static final TimeUnit DEF_TIMEOUT_UNIT = TimeUnit.SECONDS;
-        public static final RetryPolicy.Builder DEF_RETRY_POLICY_BUILDER = new RetryNTimes.Builder(3);
-
-        private RetryPolicy.Builder builder = DEF_RETRY_POLICY_BUILDER;
-        private int timeout = DEF_TIMEOUT;
-        private TimeUnit timeoutUnit = DEF_TIMEOUT_UNIT;
-        private List<String> pdAddrs = new ArrayList<>();
-
-        public Builder setTimeout(int timeout, TimeUnit unit) {
-            this.timeout = timeout;
-            this.timeoutUnit = unit;
-            return this;
-        }
-
-        public Builder setRetryPolicyBuilder(RetryPolicy.Builder builder) {
-            this.builder = builder;
-            return this;
-        }
-
-        public Builder addAddress(String address) {
-            pdAddrs.add(address);
-            return this;
-        }
-
-        public ReadOnlyPDClient build() {
-            return buildHelper();
+        public ReadOnlyPDClient build(TiSession session) {
+            return buildHelper(session);
         }
 
         @VisibleForTesting
-        PDClient buildRaw() {
-            return buildHelper();
+        PDClient buildRaw(TiSession session) {
+            return buildHelper(session);
         }
 
-        private PDClient buildHelper() {
-            checkArgument(pdAddrs.size() > 0, "No PD address specified.");
-
-            List<HostAndPort> urls = ImmutableList.copyOf(Iterables.transform(ImmutableSet.copyOf(pdAddrs).asList(),
-                                                                              addStr -> HostAndPort.fromString(addStr)));
+        private PDClient buildHelper(TiSession session) {
             PDClient client = null;
             try {
-                client = new PDClient(timeout, timeoutUnit, builder);
-                client.initCluster(urls);
+                client = new PDClient(session);
+                client.initCluster();
             } catch (Exception e) {
                 if (client != null) {
                     try {

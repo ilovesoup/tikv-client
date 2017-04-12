@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-public class Configuration {
+public class TiConfiguration {
     public static final int                     DEF_TIMEOUT = 3;
     public static final TimeUnit                DEF_TIMEOUT_UNIT = TimeUnit.SECONDS;
 
@@ -33,8 +33,8 @@ public class Configuration {
     private TimeUnit                            timeoutUnit = DEF_TIMEOUT_UNIT;
     private List<HostAndPort>                   pdAddrs = new ArrayList<>();
 
-    public static Configuration createDefault(List<String> pdAddrs) {
-        Configuration conf = new Configuration();
+    public static TiConfiguration createDefault(List<String> pdAddrs) {
+        TiConfiguration conf = new TiConfiguration();
         conf.pdAddrs = ImmutableList.copyOf(Iterables.transform(ImmutableSet.copyOf(pdAddrs).asList(),
                 addStr -> HostAndPort.fromString(addStr)));
         return conf;

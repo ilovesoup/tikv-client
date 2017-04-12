@@ -64,6 +64,10 @@ public class RegionManager {
         keyToRegionIdCache =  TreeRangeMap.create();
     }
 
+    public TiSession getSession() {
+        return pdClient.getSession();
+    }
+
     public Region getRegionByKey(ByteString key) {
         Long regionId;
         lock.readLock().lock();

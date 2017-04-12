@@ -16,9 +16,6 @@
 package com.pingcap.tikv;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import com.google.common.net.HostAndPort;
 import com.google.protobuf.ByteString;
 import com.pingcap.tikv.grpc.Metapb;
@@ -27,8 +24,6 @@ import com.pingcap.tikv.grpc.Pdpb.*;
 import com.pingcap.tikv.grpc.Metapb.Region;
 import com.pingcap.tikv.grpc.Metapb.Store;
 import com.pingcap.tikv.meta.TiTimestamp;
-import com.pingcap.tikv.policy.RetryNTimes;
-import com.pingcap.tikv.policy.RetryPolicy;
 import com.pingcap.tikv.util.FutureObserver;
 import com.pingcap.tikv.util.VoidCallable;
 import io.grpc.ManagedChannel;
@@ -39,7 +34,6 @@ import org.apache.logging.log4j.Logger;
 
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 
@@ -53,7 +47,7 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
     private volatile LeaderWrapper      leaderWrapper;
     private ScheduledExecutorService    service;
     private TiSession                   session;
-    private Configuration               conf;
+    private TiConfiguration             conf;
 
     @Override
     public TiTimestamp getTimestamp() {
@@ -157,6 +151,19 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
         }
     }
 
+    @Override
+    public TiSession getSession() {
+        return session;
+    }
+
+    public TiConfiguration getConf() {
+        return conf;
+    }
+
+    public static ReadOnlyPDClient create(TiSession session) {
+        return createRaw(session);
+    }
+
     private PDClient(TiSession session) {
         this.session = session;
         this.conf = session.getConf();
@@ -164,13 +171,13 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
 
     // TODO: Change to Grpc's MethodDescriptor maybe?
     private <T> T callWithRetry(Callable<T> proc, String methodName) {
-        return session.getRetryPolicyBuilder()
+        return getSession().getRetryPolicyBuilder()
                 .create(() -> { updateLeader(getMembers()); return null; })
                 .callWithRetry(proc, methodName);
     }
 
     private void callAsyncWithRetry(VoidCallable proc, String methodName) {
-        session.getRetryPolicyBuilder()
+        getSession().getRetryPolicyBuilder()
                 .create(null).callWithRetry(() -> { proc.call(); return null; }, methodName);
     }
 
@@ -242,7 +249,7 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
     }
 
     private GetMembersResponse getMembers() {
-        List<HostAndPort> pdAddrs = conf.getPdAddrs();
+        List<HostAndPort> pdAddrs = getConf().getPdAddrs();
         checkArgument(pdAddrs.size() > 0, "No PD address specified.");
         for (HostAndPort url : pdAddrs) {
             ManagedChannel probChan = null;
@@ -305,12 +312,14 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
 
     private PDGrpc.PDBlockingStub getBlockingStub() {
         return leaderWrapper.getBlockingStub()
-                            .withDeadlineAfter(conf.getTimeout(), conf.getTimeoutUnit());
+                            .withDeadlineAfter(getConf().getTimeout(),
+                                               getConf().getTimeoutUnit());
     }
 
     private PDGrpc.PDStub getAsyncStub() {
         return leaderWrapper.getAsyncStub()
-                            .withDeadlineAfter(conf.getTimeout(), conf.getTimeoutUnit());
+                            .withDeadlineAfter(getConf().getTimeout(),
+                                               getConf().getTimeoutUnit());
     }
 
     private void initCluster() {
@@ -331,36 +340,19 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
         }
     }
 
-    public static Builder newBuilder() {
-        return new Builder();
-    }
-
-    public static class Builder {
-        public ReadOnlyPDClient build(TiSession session) {
-            return buildHelper(session);
-        }
-
-        @VisibleForTesting
-        PDClient buildRaw(TiSession session) {
-            return buildHelper(session);
-        }
-
-        private PDClient buildHelper(TiSession session) {
-            PDClient client = null;
-            try {
-                client = new PDClient(session);
-                client.initCluster();
-            } catch (Exception e) {
-                if (client != null) {
-                    try {
-                        client.close();
-                    } catch (InterruptedException ignore) {
-                    }
+    static PDClient createRaw(TiSession session) {
+        PDClient client = null;
+        try {
+            client = new PDClient(session);
+            client.initCluster();
+        } catch (Exception e) {
+            if (client != null) {
+                try {
+                    client.close();
+                } catch (InterruptedException ignore) {
                 }
             }
-            return client;
         }
-
-        private Builder() {}
+        return client;
     }
 }

@@ -48,19 +48,16 @@ public class RegionStoreClient implements AutoCloseable {
     private final TiKVGrpc.TiKVBlockingStub blockingStub;
     private final TiKVGrpc.TiKVStub         asyncStub;
     private final ManagedChannel            channel;
-    private RetryPolicy.Builder             retryPolicyBuilder;
-    private int                             timeout;
-    private TimeUnit                        timeoutUnit;
     private Context                         context;
+    private TiSession                       session;
+    private TiConfiguration                 conf;
 
-    private RegionStoreClient(Region region, int timeout, TimeUnit timeoutUnit,
-                              RetryPolicy.Builder retryPolicyBuilder,
+    private RegionStoreClient(Region region, TiSession session,
                               ManagedChannel channel,
                               TiKVGrpc.TiKVBlockingStub blockingStub,
                               TiKVGrpc.TiKVStub   asyncStub) {
-        this.timeout = timeout;
-        this.timeoutUnit = timeoutUnit;
-        this.retryPolicyBuilder = retryPolicyBuilder;
+        this.session = session;
+        this.conf = session.getConf();
         this.channel = channel;
         this.blockingStub = blockingStub;
         this.asyncStub = asyncStub;
@@ -72,19 +69,25 @@ public class RegionStoreClient implements AutoCloseable {
     }
 
     private TiKVGrpc.TiKVBlockingStub getBlockingStub() {
-        return blockingStub.withDeadlineAfter(timeout, timeoutUnit);
+        return blockingStub.withDeadlineAfter(getConf().getTimeout(),
+                                              getConf().getTimeoutUnit());
     }
 
     private TiKVGrpc.TiKVStub getAsyncStub() {
-        return asyncStub.withDeadlineAfter(timeout, timeoutUnit);
+        return asyncStub.withDeadlineAfter(getConf().getTimeout(),
+                                           getConf().getTimeoutUnit());
     }
 
     private <T> T callWithRetry(Callable<T> proc, String methodName) {
-        return retryPolicyBuilder.create(null).callWithRetry(proc, methodName);
+        return getSession()
+                .getRetryPolicyBuilder()
+                .create(null).callWithRetry(proc, methodName);
     }
 
     private void callAsyncWithRetry(VoidCallable proc, String methodName) {
-        retryPolicyBuilder.create(null).callWithRetry(() -> { proc.call(); return null; }, methodName);
+        getSession()
+                .getRetryPolicyBuilder()
+                .create(null).callWithRetry(() -> { proc.call(); return null; }, methodName);
     }
 
     public ByteString get(ByteString key, long version) {
@@ -173,51 +176,33 @@ public class RegionStoreClient implements AutoCloseable {
         channel.shutdown();
     }
 
-    public static Builder newBuilder() {
-        return new Builder();
+    public TiSession getSession() {
+        return session;
     }
 
-    public static class Builder {
-        public static final int DEF_TIMEOUT = 3;
-        public static final TimeUnit DEF_TIMEOUT_UNIT = TimeUnit.SECONDS;
-        public static final RetryPolicy.Builder DEF_RETRY_POLICY_BUILDER = new RetryNTimes.Builder(3);
+    public TiConfiguration getConf() {
+        return conf;
+    }
 
-        private RetryPolicy.Builder builder = DEF_RETRY_POLICY_BUILDER;
-        private int timeout = DEF_TIMEOUT;
-        private TimeUnit timeoutUnit = DEF_TIMEOUT_UNIT;
-
-        public Builder setTimeout(int timeout, TimeUnit unit) {
-            this.timeout = timeout;
-            this.timeoutUnit = unit;
-            return this;
-        }
-
-        public Builder setRetryPolicyBuilder(RetryPolicy.Builder builder) {
-            this.builder = builder;
-            return this;
-        }
-
-        public RegionStoreClient build(Region region, Store store) {
-            RegionStoreClient client = null;
-            try {
-                HostAndPort address = HostAndPort.fromString(store.getAddress());
-                ManagedChannel channel = ManagedChannelBuilder
-                        .forAddress(address.getHostText(), address.getPort())
-                        .usePlaintext(true)
-                        .build();
-                TiKVGrpc.TiKVBlockingStub blockingStub = TiKVGrpc.newBlockingStub(channel);
-                TiKVGrpc.TiKVStub asyncStub = TiKVGrpc.newStub(channel);
-                client = new RegionStoreClient(region, timeout, timeoutUnit, builder, channel, blockingStub, asyncStub);
-            } catch (Exception e) {
-                if (client != null) {
-                    try {
-                        client.close();
-                    } catch (Exception ignore) {}
+    public static RegionStoreClient create(Region region, Store store, TiSession session) {
+        RegionStoreClient client = null;
+        try {
+            HostAndPort address = HostAndPort.fromString(store.getAddress());
+            ManagedChannel channel = ManagedChannelBuilder
+                    .forAddress(address.getHostText(), address.getPort())
+                    .usePlaintext(true)
+                    .build();
+            TiKVGrpc.TiKVBlockingStub blockingStub = TiKVGrpc.newBlockingStub(channel);
+            TiKVGrpc.TiKVStub asyncStub = TiKVGrpc.newStub(channel);
+            client = new RegionStoreClient(region, session, channel, blockingStub, asyncStub);
+        } catch (Exception e) {
+            if (client != null) {
+                try {
+                    client.close();
+                } catch (Exception ignore) {
                 }
             }
-            return client;
         }
-
-        private Builder() {}
+        return client;
     }
 }

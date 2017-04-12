@@ -24,7 +24,7 @@ import com.pingcap.tikv.meta.TiTimestamp;
 import java.util.concurrent.Future;
 
 /**
- * Readonly PD client
+ * Readonly PD client including only reading related interface
  * Supposed for TiDB-like use cases
  */
 public interface ReadOnlyPDClient {
@@ -68,4 +68,11 @@ public interface ReadOnlyPDClient {
      * @throws InterruptedException
      */
     void close() throws InterruptedException;
+
+    /**
+     * <p>Get associated session</p>
+     *
+     * * @return the session associated to client
+     */
+    TiSession getSession();
 }

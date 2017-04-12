@@ -31,17 +31,22 @@ import java.util.List;
 public class Snapshot {
     private final long version;
     private final RegionManager regionCache;
+    private final TiSession session;
 
-    public Snapshot(long version, RegionManager regionCache) {
+    public Snapshot(long version, RegionManager regionCache, TiSession session) {
         this.version = version;
         this.regionCache = regionCache;
+        this.session = session;
+    }
+
+    public TiSession getSession() {
+        return session;
     }
 
     public ByteString get(ByteString key) {
         Pair<Region, Store> pair = regionCache.getRegionStorePairByKey(key);
         RegionStoreClient client = RegionStoreClient
-                .newBuilder()
-                .build(pair.first, pair.second);
+                .create(pair.first, pair.second, getSession());
         // TODO: Need to deal with lock error after grpc stable
         return client.get(key, version);
     }
@@ -58,8 +63,7 @@ public class Snapshot {
         private boolean loadCache() {
             Pair<Region, Store> pair = regionCache.getRegionStorePairByKey(startKey);
             try (RegionStoreClient client = RegionStoreClient
-                    .newBuilder()
-                    .build(pair.first, pair.second)) {
+                    .create(pair.first, pair.second, getSession())) {
                 startKey = pair.first.getEndKey();
                 currentCache = client.scan(startKey, version);
                 if (currentCache == null || currentCache.size() == 0) {
@@ -116,8 +120,7 @@ public class Snapshot {
                                                curRegion.getEndKey().asReadOnlyByteBuffer());
                 if (lastPair != null) {
                     try (RegionStoreClient client = RegionStoreClient
-                            .newBuilder()
-                            .build(lastPair.first, lastPair.second)) {
+                            .create(lastPair.first, lastPair.second, getSession())) {
                         List<KvPair> partialResult = client.batchGet(keyBuffer, version);
                         for (KvPair kv : partialResult) {
                             // TODO: Add lock check

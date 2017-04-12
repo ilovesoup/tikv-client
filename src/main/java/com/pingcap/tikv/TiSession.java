@@ -25,18 +25,18 @@ import com.pingcap.tikv.policy.RetryPolicy;
 public class TiSession {
     public static final RetryPolicy.Builder     DEF_RETRY_POLICY_BUILDER = new RetryNTimes.Builder(3);
 
-    private Configuration                       conf;
+    private TiConfiguration conf;
     private RetryPolicy.Builder                 retryPolicyBuilder = DEF_RETRY_POLICY_BUILDER;
 
-    public TiSession(Configuration conf) {
+    public TiSession(TiConfiguration conf) {
         this.conf = conf;
     }
 
-    public Configuration getConf() {
+    public TiConfiguration getConf() {
         return conf;
     }
 
-    public static TiSession create(Configuration conf) {
+    public static TiSession create(TiConfiguration conf) {
         return new TiSession(conf);
     }
 

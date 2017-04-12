@@ -19,14 +19,12 @@ import com.google.common.collect.ImmutableList;
 import com.google.protobuf.ByteString;
 import com.pingcap.tikv.grpc.Metapb;
 import com.pingcap.tikv.grpc.Metapb.*;
-import com.pingcap.tikv.policy.RetryNTimes;
 import com.pingcap.tikv.util.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.*;
 
@@ -53,10 +51,8 @@ public class RegionManagerTest {
                 GrpcUtils.makeMember(2, "http://" + LOCAL_ADDR + ":" + (server.port + 1)),
                 GrpcUtils.makeMember(2, "http://" + LOCAL_ADDR + ":" + (server.port + 2))
         ));
-        Configuration conf = Configuration.createDefault(ImmutableList.of("127.0.0.1:" + server.port));
-        TiSession session = TiSession.create(conf);
-        return PDClient.newBuilder()
-                .buildRaw(session);
+        TiConfiguration conf = TiConfiguration.createDefault(ImmutableList.of("127.0.0.1:" + server.port));
+        return PDClient.createRaw(TiSession.create(conf));
     }
 
     @Test

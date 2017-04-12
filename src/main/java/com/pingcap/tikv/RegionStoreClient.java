@@ -29,8 +29,6 @@ import com.pingcap.tikv.grpc.Kvrpcpb.KvPair;
 import com.pingcap.tikv.grpc.Metapb.Region;
 import com.pingcap.tikv.grpc.Metapb.Store;
 import com.pingcap.tikv.grpc.TiKVGrpc;
-import com.pingcap.tikv.policy.RetryNTimes;
-import com.pingcap.tikv.policy.RetryPolicy;
 import com.pingcap.tikv.util.FutureObserver;
 import com.pingcap.tikv.util.VoidCallable;
 import io.grpc.ManagedChannel;

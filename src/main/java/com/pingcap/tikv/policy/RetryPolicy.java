@@ -59,13 +59,13 @@ public abstract class RetryPolicy {
                 return result;
             } catch (Exception e) {
                 Status status = Status.fromThrowable(e);
-                logger.info(e);
                 if (checkNotRecoverableException(status) || !shouldRetry(e)) {
                     logger.error("Failed to recover from last grpc error calling %s.", methodName);
                     throw new GrpcException(e);
                 }
                 try {
                     if (recoverMethod != null && checkNotLeaderException(status)) {
+                        logger.info("Leader switched, recovering...");
                         recoverMethod.call();
                     }
                 } catch (Exception e1) {

@@ -42,6 +42,7 @@ public abstract class AbstractGrpcClient<BlockingStubT extends AbstractStub<Bloc
         return conf;
     }
 
+    // TODO: Seems a little bit messy for lambda part
     protected <ReqT, ResT> ResT callWithRetry(MethodDescriptor<ReqT, ResT> method,
                                               ReqT request) {
         return getSession()

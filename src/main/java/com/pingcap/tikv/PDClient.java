@@ -20,6 +20,8 @@ import com.google.common.net.HostAndPort;
 import com.google.protobuf.ByteString;
 import com.pingcap.tikv.grpc.Metapb;
 import com.pingcap.tikv.grpc.PDGrpc;
+import com.pingcap.tikv.grpc.PDGrpc.PDBlockingStub;
+import com.pingcap.tikv.grpc.PDGrpc.PDStub;
 import com.pingcap.tikv.grpc.Pdpb.*;
 import com.pingcap.tikv.grpc.Metapb.Region;
 import com.pingcap.tikv.grpc.Metapb.Store;
@@ -39,7 +41,7 @@ import java.util.concurrent.*;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class PDClient extends AbstractGrpcClient<PDGrpc.PDBlockingStub, PDGrpc.PDStub> implements ReadOnlyPDClient {
+public class PDClient extends AbstractGrpcClient<PDBlockingStub, PDStub> implements ReadOnlyPDClient {
     private static final Logger         logger = LogManager.getFormatterLogger(PDClient.class);
     private RequestHeader               header;
     private TsoRequest                  tsoReq;
@@ -181,8 +183,8 @@ public class PDClient extends AbstractGrpcClient<PDGrpc.PDBlockingStub, PDGrpc.P
 
     class LeaderWrapper {
         private final HostAndPort           leaderInfo;
-        private final PDGrpc.PDBlockingStub blockingStub;
-        private final PDGrpc.PDStub         asyncStub;
+        private final PDBlockingStub        blockingStub;
+        private final PDStub                asyncStub;
         private final ManagedChannel        channel;
         private final long                  createTime;
 
@@ -202,11 +204,9 @@ public class PDClient extends AbstractGrpcClient<PDGrpc.PDBlockingStub, PDGrpc.P
             return leaderInfo;
         }
 
-        public PDGrpc.PDBlockingStub getBlockingStub() {
-            return blockingStub;
-        }
+        public PDBlockingStub getBlockingStub() { return blockingStub; }
 
-        public PDGrpc.PDStub getAsyncStub() {
+        public PDStub getAsyncStub() {
             return asyncStub;
         }
 
@@ -289,14 +289,14 @@ public class PDClient extends AbstractGrpcClient<PDGrpc.PDBlockingStub, PDGrpc.P
     }
 
     @Override
-    protected PDGrpc.PDBlockingStub getBlockingStub() {
+    protected PDBlockingStub getBlockingStub() {
         return leaderWrapper.getBlockingStub()
                             .withDeadlineAfter(getConf().getTimeout(),
                                                getConf().getTimeoutUnit());
     }
 
     @Override
-    protected PDGrpc.PDStub getAsyncStub() {
+    protected PDStub getAsyncStub() {
         return leaderWrapper.getAsyncStub()
                             .withDeadlineAfter(getConf().getTimeout(),
                                                getConf().getTimeoutUnit());
@@ -314,14 +314,8 @@ public class PDClient extends AbstractGrpcClient<PDGrpc.PDBlockingStub, PDGrpc.P
         tsoReq = TsoRequest.newBuilder().setHeader(header).build();
         updateLeader(resp);
         service = Executors.newSingleThreadScheduledExecutor();
-        service.scheduleAtFixedRate(new LeaderCheckTask(), 1, 1, TimeUnit.MINUTES);
-    }
-
-    private class LeaderCheckTask implements Runnable {
-        @Override
-        public void run() {
-            updateLeader(null);
-        }
+        service.scheduleAtFixedRate(() -> updateLeader(null),
+                                    1, 1, TimeUnit.MINUTES);
     }
 
     static PDClient createRaw(TiSession session) {

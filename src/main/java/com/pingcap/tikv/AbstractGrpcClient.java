@@ -26,8 +26,8 @@ import static io.grpc.stub.ClientCalls.asyncBidiStreamingCall;
 
 public abstract class AbstractGrpcClient<BlockingStubT extends AbstractStub<BlockingStubT>,
                                          StubT extends AbstractStub<StubT>> implements AutoCloseable {
-    private TiSession                       session;
-    private TiConfiguration                 conf;
+    private TiSession          session;
+    private TiConfiguration    conf;
 
     protected AbstractGrpcClient(TiSession session) {
         this.session = session;
@@ -87,6 +87,7 @@ public abstract class AbstractGrpcClient<BlockingStubT extends AbstractStub<Bloc
     protected abstract BlockingStubT getBlockingStub();
     protected abstract StubT getAsyncStub();
 
+    // TODO: A little bit odd to put here, should be inside policy
     protected Callable<Void> getRecoveryMethod() {
         return null;
     }

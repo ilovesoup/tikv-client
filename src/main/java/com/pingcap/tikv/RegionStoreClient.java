@@ -29,6 +29,8 @@ import com.pingcap.tikv.grpc.Kvrpcpb.KvPair;
 import com.pingcap.tikv.grpc.Metapb.Region;
 import com.pingcap.tikv.grpc.Metapb.Store;
 import com.pingcap.tikv.grpc.TiKVGrpc;
+import com.pingcap.tikv.grpc.TiKVGrpc.TiKVBlockingStub;
+import com.pingcap.tikv.grpc.TiKVGrpc.TiKVStub;
 import com.pingcap.tikv.util.FutureObserver;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -38,37 +40,13 @@ import org.apache.logging.log4j.Logger;
 import java.util.List;
 import java.util.concurrent.Future;
 
-public class RegionStoreClient extends AbstractGrpcClient<TiKVGrpc.TiKVBlockingStub, TiKVGrpc.TiKVStub> {
+public class RegionStoreClient extends AbstractGrpcClient<TiKVBlockingStub, TiKVStub> {
     private static final Logger             logger = LogManager.getFormatterLogger(RegionStoreClient.class);
-    private Context                         context;
-    private final TiKVGrpc.TiKVBlockingStub blockingStub;
-    private final TiKVGrpc.TiKVStub         asyncStub;
+
+    private final Context                   context;
+    private final TiKVBlockingStub          blockingStub;
+    private final TiKVStub                  asyncStub;
     private final ManagedChannel            channel;
-
-    private RegionStoreClient(Region region, TiSession session,
-                              ManagedChannel channel,
-                              TiKVGrpc.TiKVBlockingStub blockingStub,
-                              TiKVGrpc.TiKVStub   asyncStub) {
-        super(session);
-        this.channel = channel;
-        this.blockingStub = blockingStub;
-        this.asyncStub = asyncStub;
-        this.context = Context.newBuilder()
-                              .setRegionId(region.getId())
-                              .setRegionEpoch(region.getRegionEpoch())
-                              .setPeer(region.getPeers(0))
-                              .build();
-    }
-
-    protected TiKVGrpc.TiKVBlockingStub getBlockingStub() {
-        return blockingStub.withDeadlineAfter(getConf().getTimeout(),
-                getConf().getTimeoutUnit());
-    }
-
-    protected TiKVGrpc.TiKVStub getAsyncStub() {
-        return asyncStub.withDeadlineAfter(getConf().getTimeout(),
-                getConf().getTimeoutUnit());
-    }
 
     public ByteString get(ByteString key, long version) {
         GetRequest request = GetRequest.newBuilder()
@@ -164,8 +142,8 @@ public class RegionStoreClient extends AbstractGrpcClient<TiKVGrpc.TiKVBlockingS
                     .forAddress(address.getHostText(), address.getPort())
                     .usePlaintext(true)
                     .build();
-            TiKVGrpc.TiKVBlockingStub blockingStub = TiKVGrpc.newBlockingStub(channel);
-            TiKVGrpc.TiKVStub asyncStub = TiKVGrpc.newStub(channel);
+            TiKVBlockingStub blockingStub = TiKVGrpc.newBlockingStub(channel);
+            TiKVStub asyncStub = TiKVGrpc.newStub(channel);
             client = new RegionStoreClient(region, session, channel, blockingStub, asyncStub);
         } catch (Exception e) {
             if (client != null) {
@@ -176,5 +154,32 @@ public class RegionStoreClient extends AbstractGrpcClient<TiKVGrpc.TiKVBlockingS
             }
         }
         return client;
+    }
+
+    private RegionStoreClient(Region region, TiSession session,
+                              ManagedChannel channel,
+                              TiKVBlockingStub blockingStub,
+                              TiKVStub asyncStub) {
+        super(session);
+        this.channel = channel;
+        this.blockingStub = blockingStub;
+        this.asyncStub = asyncStub;
+        this.context = Context.newBuilder()
+                .setRegionId(region.getId())
+                .setRegionEpoch(region.getRegionEpoch())
+                .setPeer(region.getPeers(0))
+                .build();
+    }
+
+    @Override
+    protected TiKVBlockingStub getBlockingStub() {
+        return blockingStub.withDeadlineAfter(getConf().getTimeout(),
+                getConf().getTimeoutUnit());
+    }
+
+    @Override
+    protected TiKVStub getAsyncStub() {
+        return asyncStub.withDeadlineAfter(getConf().getTimeout(),
+                getConf().getTimeoutUnit());
     }
 }

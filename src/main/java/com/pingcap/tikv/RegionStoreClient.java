@@ -34,15 +34,11 @@ import com.pingcap.tikv.grpc.TiKVGrpc.TiKVStub;
 import com.pingcap.tikv.util.FutureObserver;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 import java.util.concurrent.Future;
 
 public class RegionStoreClient extends AbstractGrpcClient<TiKVBlockingStub, TiKVStub> {
-    private static final Logger             logger = LogManager.getFormatterLogger(RegionStoreClient.class);
-
     private final Context                   context;
     private final TiKVBlockingStub          blockingStub;
     private final TiKVStub                  asyncStub;

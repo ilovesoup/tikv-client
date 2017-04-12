@@ -30,8 +30,6 @@ import com.pingcap.tikv.util.FutureObserver;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -42,7 +40,6 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 public class PDClient extends AbstractGrpcClient<PDBlockingStub, PDStub> implements ReadOnlyPDClient {
-    private static final Logger         logger = LogManager.getFormatterLogger(PDClient.class);
     private RequestHeader               header;
     private TsoRequest                  tsoReq;
     private volatile LeaderWrapper      leaderWrapper;
@@ -279,10 +276,10 @@ public class PDClient extends AbstractGrpcClient<PDBlockingStub, PDStub> impleme
                         PDGrpc.newStub(clientChannel),
                         clientChannel,
                         System.nanoTime());
-                logger.info("Switched to new leader " + newLeader.toString());
+                logger.info("Switched to new leader: %s", newLeader.toString());
             }
         } catch (MalformedURLException e) {
-            logger.error("Client URL is not valid: " + leaderUrlStr, e);
+            logger.error("Client URL is not valid: %s", leaderUrlStr, e);
         } catch (Exception e) {
             logger.error("Error updating leader.", e);
         }

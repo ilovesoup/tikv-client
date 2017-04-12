@@ -39,7 +39,7 @@ public class Snapshot {
 
     public ByteString get(ByteString key) {
         Pair<Region, Store> pair = regionCache.getRegionStorePairByKey(key);
-        StoreClient client = StoreClient
+        RegionStoreClient client = RegionStoreClient
                 .newBuilder()
                 .build(pair.first, pair.second);
         // TODO: Need to deal with lock error after grpc stable
@@ -57,7 +57,7 @@ public class Snapshot {
 
         private boolean loadCache() {
             Pair<Region, Store> pair = regionCache.getRegionStorePairByKey(startKey);
-            try (StoreClient client = StoreClient
+            try (RegionStoreClient client = RegionStoreClient
                     .newBuilder()
                     .build(pair.first, pair.second)) {
                 startKey = pair.first.getEndKey();
@@ -115,7 +115,7 @@ public class Snapshot {
                 curKeyRange = Range.closedOpen(curRegion.getStartKey().asReadOnlyByteBuffer(),
                                                curRegion.getEndKey().asReadOnlyByteBuffer());
                 if (lastPair != null) {
-                    try (StoreClient client = StoreClient
+                    try (RegionStoreClient client = RegionStoreClient
                             .newBuilder()
                             .build(lastPair.first, lastPair.second)) {
                         List<KvPair> partialResult = client.batchGet(keyBuffer, version);

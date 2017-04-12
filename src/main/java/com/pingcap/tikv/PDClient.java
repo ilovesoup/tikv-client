@@ -20,7 +20,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.net.HostAndPort;
-import com.google.common.util.concurrent.SettableFuture;
 import com.google.protobuf.ByteString;
 import com.pingcap.tikv.grpc.Metapb;
 import com.pingcap.tikv.grpc.PDGrpc;
@@ -30,6 +29,8 @@ import com.pingcap.tikv.grpc.Metapb.Store;
 import com.pingcap.tikv.meta.TiTimestamp;
 import com.pingcap.tikv.policy.RetryNTimes;
 import com.pingcap.tikv.policy.RetryPolicy;
+import com.pingcap.tikv.util.FutureObserver;
+import com.pingcap.tikv.util.VoidCallable;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
@@ -75,18 +76,14 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
 
     @Override
     public Future<Region> getRegionByKeyAsync(ByteString key) {
-        FutureObserver responseObserver = new FutureObserver<Region, GetRegionResponse>() {
-            @Override
-            public Region getValue(GetRegionResponse resp) {
-                return resp.getRegion();
-            }
-        };
+        FutureObserver<Region, GetRegionResponse> responseObserver =
+                new FutureObserver<>((GetRegionResponse resp) -> resp.getRegion());
         GetRegionRequest request = GetRegionRequest.newBuilder()
                 .setHeader(header)
                 .setRegionKey(key)
                 .build();
 
-        getAsyncStub().getRegion(request, responseObserver);
+        callAsyncWithRetry(() -> getAsyncStub().getRegion(request, responseObserver), "getRegion");
         return responseObserver.getFuture();
     }
 
@@ -104,18 +101,15 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
 
     @Override
     public Future<Region> getRegionByIDAsync(long id) {
-        FutureObserver responseObserver = new FutureObserver<Region, GetRegionResponse>() {
-            @Override
-            public Region getValue(GetRegionResponse resp) {
-                return resp.getRegion();
-            }
-        };
+        FutureObserver<Region, GetRegionResponse> responseObserver =
+                new FutureObserver<>((GetRegionResponse resp) -> resp.getRegion());
+
         GetRegionByIDRequest request = GetRegionByIDRequest.newBuilder()
                 .setHeader(header)
                 .setRegionId(id)
                 .build();
 
-        getAsyncStub().getRegionByID(request, responseObserver);
+        callAsyncWithRetry(() -> getAsyncStub().getRegionByID(request, responseObserver), "getRegionByID");
         return responseObserver.getFuture();
     }
 
@@ -136,22 +130,21 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
 
     @Override
     public Future<Store> getStoreAsync(long storeId) {
-        FutureObserver responseObserver = new FutureObserver<Store, GetStoreResponse>() {
-            @Override
-            public Store getValue(GetStoreResponse resp) {
-                Store store = resp.getStore();
-                if (store.getState() == Metapb.StoreState.Tombstone) {
-                    return null;
-                }
-                return store;
-            }
-        };
+        FutureObserver<Store, GetStoreResponse> responseObserver =
+                new FutureObserver<>((GetStoreResponse resp) -> {
+                    Store store = resp.getStore();
+                    if (store.getState() == Metapb.StoreState.Tombstone) {
+                        return null;
+                    }
+                    return store;
+        });
+
         GetStoreRequest request = GetStoreRequest.newBuilder()
                 .setHeader(header)
                 .setStoreId(storeId)
                 .build();
 
-        getAsyncStub().getStore(request, responseObserver);
+        callAsyncWithRetry(() -> getAsyncStub().getStore(request, responseObserver), "getStore");
         return responseObserver.getFuture();
     }
 
@@ -176,17 +169,17 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
                 .callWithRetry(proc, methodName);
     }
 
+    private void callAsyncWithRetry(VoidCallable proc, String methodName) {
+        retryPolicyBuilder.create(null).callWithRetry(() -> { proc.call(); return null; }, methodName);
+    }
+
     private TiTimestamp getTimestampHelper() throws ExecutionException, InterruptedException {
-        FutureObserver<Timestamp, TsoResponse> responseObserver = new FutureObserver<Timestamp, TsoResponse>() {
-            @Override
-            public Timestamp getValue(TsoResponse resp) {
-                return resp.getTimestamp();
-            }
-        };
+        FutureObserver<Timestamp, TsoResponse> responseObserver =
+                            new FutureObserver<>((TsoResponse resp) -> resp.getTimestamp());
         StreamObserver<TsoRequest> requestObserver = getAsyncStub().tso(responseObserver);
         requestObserver.onNext(tsoReq);
         requestObserver.onCompleted();
-        com.pingcap.tikv.grpc.Pdpb.Timestamp resp = responseObserver.getFuture().get();
+        Timestamp resp = responseObserver.getFuture().get();
         return new TiTimestamp(resp.getPhysical(), resp.getLogical());
     }
 
@@ -334,29 +327,6 @@ public class PDClient implements AutoCloseable, ReadOnlyPDClient {
         public void run() {
             updateLeader(null);
         }
-    }
-
-    private static abstract class FutureObserver<V, T> implements StreamObserver<T> {
-        private final SettableFuture<V> resultFuture;
-
-        public FutureObserver() {
-            this.resultFuture = SettableFuture.create();
-        }
-
-        public abstract V getValue(T resp);
-
-        @Override
-        public void onNext(T resp) { resultFuture.set(getValue(resp)); }
-
-        @Override
-        public void onError(Throwable t) {
-            resultFuture.setException(t);
-        }
-
-        @Override
-        public void onCompleted() {}
-
-        public SettableFuture<V> getFuture() { return resultFuture; }
     }
 
     public static Builder newBuilder() {

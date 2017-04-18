@@ -27,20 +27,31 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class Snapshot {
-    private final long version;
+    private final Version version;
     private final RegionManager regionCache;
     private final TiSession session;
 
-    public Snapshot(long version, RegionManager regionCache, TiSession session) {
+    public Snapshot(Version version, RegionManager regionCache, TiSession session) {
         this.version = version;
         this.regionCache = regionCache;
         this.session = session;
     }
 
+    public Snapshot(RegionManager regionCache, TiSession session) {
+        this(Version.getCurrentTSAsVersion(), regionCache, session);
+    }
+
     public TiSession getSession() {
         return session;
+    }
+
+    public byte[] get(byte[] key) {
+        ByteString keyString = ByteString.copyFrom(key);
+        ByteString value = get(keyString);
+        return value.toByteArray();
     }
 
     public ByteString get(ByteString key) {
@@ -48,7 +59,7 @@ public class Snapshot {
         RegionStoreClient client = RegionStoreClient
                 .create(pair.first, pair.second, getSession());
         // TODO: Need to deal with lock error after grpc stable
-        return client.get(key, version);
+        return client.get(key, version.getVersion());
     }
 
     private class ScanIterator implements Iterator<KvPair> {
@@ -64,8 +75,9 @@ public class Snapshot {
             Pair<Region, Store> pair = regionCache.getRegionStorePairByKey(startKey);
             try (RegionStoreClient client = RegionStoreClient
                     .create(pair.first, pair.second, getSession())) {
+                //currentCache = client.scan(startKey, version.getVersion());
+                currentCache = client.scan(pair.first.getStartKey(), version.getVersion());
                 startKey = pair.first.getEndKey();
-                currentCache = client.scan(startKey, version);
                 if (currentCache == null || currentCache.size() == 0) {
                     return false;
                 }
@@ -121,7 +133,7 @@ public class Snapshot {
                 if (lastPair != null) {
                     try (RegionStoreClient client = RegionStoreClient
                             .create(lastPair.first, lastPair.second, getSession())) {
-                        List<KvPair> partialResult = client.batchGet(keyBuffer, version);
+                        List<KvPair> partialResult = client.batchGet(keyBuffer, version.getVersion());
                         for (KvPair kv : partialResult) {
                             // TODO: Add lock check
                             result.add(kv);
@@ -135,5 +147,21 @@ public class Snapshot {
             }
         }
         return result;
+    }
+
+    public static class Version {
+        public static Version getCurrentTSAsVersion() {
+            long ts = System.nanoTime() / TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
+            return new Version(ts);
+        }
+
+        private final long version;
+        private Version(long ts) {
+            version = ts;
+        }
+
+        public long getVersion() {
+            return version;
+        }
     }
 }

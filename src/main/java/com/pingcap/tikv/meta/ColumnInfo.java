@@ -13,9 +13,14 @@
  * limitations under the License.
  */
 
-package com.pingcap.tikv.util;
+package com.pingcap.tikv.meta;
 
-@FunctionalInterface
-public interface VoidCallable {
-    void call() throws Exception;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+// For now we don't parse default value for simplicity
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class ColumnInfo {
+    private long id;
+    private String name;
+    private int offset;
 }

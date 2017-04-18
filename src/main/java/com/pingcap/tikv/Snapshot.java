@@ -75,8 +75,7 @@ public class Snapshot {
             Pair<Region, Store> pair = regionCache.getRegionStorePairByKey(startKey);
             try (RegionStoreClient client = RegionStoreClient
                     .create(pair.first, pair.second, getSession())) {
-                //currentCache = client.scan(startKey, version.getVersion());
-                currentCache = client.scan(pair.first.getStartKey(), version.getVersion());
+                currentCache = client.scan(startKey, version.getVersion());
                 startKey = pair.first.getEndKey();
                 if (currentCache == null || currentCache.size() == 0) {
                     return false;

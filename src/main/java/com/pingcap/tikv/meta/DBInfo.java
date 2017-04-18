@@ -17,6 +17,8 @@ package com.pingcap.tikv.meta;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.protobuf.ByteString;
 
 import java.util.List;
 

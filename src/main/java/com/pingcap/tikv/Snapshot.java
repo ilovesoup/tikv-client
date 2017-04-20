@@ -18,6 +18,7 @@ package com.pingcap.tikv;
 
 import com.google.common.collect.Range;
 import com.google.protobuf.ByteString;
+import com.pingcap.tikv.codec.KeyUtils;
 import com.pingcap.tikv.grpc.Kvrpcpb.KvPair;
 import com.pingcap.tikv.grpc.Metapb.Store;
 import com.pingcap.tikv.grpc.Metapb.Region;
@@ -33,11 +34,14 @@ public class Snapshot {
     private final Version version;
     private final RegionManager regionCache;
     private final TiSession session;
+    private final static int EPOCH_SHIFT_BITS = 18;
+    private final TiConfiguration conf;
 
     public Snapshot(Version version, RegionManager regionCache, TiSession session) {
         this.version = version;
         this.regionCache = regionCache;
         this.session = session;
+        this.conf = session.getConf();
     }
 
     public Snapshot(RegionManager regionCache, TiSession session) {
@@ -63,24 +67,44 @@ public class Snapshot {
     }
 
     private class ScanIterator implements Iterator<KvPair> {
-        private List<KvPair> currentCache;
-        private int index = -1;
-        private ByteString startKey;
+        private List<KvPair>    currentCache;
+        private ByteString      startKey;
+        private int             index = -1;
+        private boolean         eof = false;
 
         public ScanIterator(ByteString startKey) {
             this.startKey = startKey;
         }
 
         private boolean loadCache() {
+            if (eof) return false;
+
             Pair<Region, Store> pair = regionCache.getRegionStorePairByKey(startKey);
-            try (RegionStoreClient client = RegionStoreClient
-                    .create(pair.first, pair.second, getSession())) {
+            Region region = pair.first;
+            Store store = pair.second;
+            try (RegionStoreClient client =
+                         RegionStoreClient.create(region, store, getSession())) {
                 currentCache = client.scan(startKey, version.getVersion());
-                startKey = pair.first.getEndKey();
                 if (currentCache == null || currentCache.size() == 0) {
                     return false;
                 }
                 index = 0;
+                // Session should be single-threaded itself
+                // so that we don't worry about conf change in the middle
+                // of a transaction. Otherwise below code might lose data
+                if (currentCache.size() < conf.getScanBatchSize()) {
+                    // Current region done, start new batch from next region
+                    startKey = region.getEndKey();
+                    if (startKey.size() == 0) {
+                        eof = true;
+                    }
+                } else {
+                    // Start new scan from exact next key in current region
+                    ByteString lastKey = currentCache
+                            .get(currentCache.size() - 1)
+                            .getKey();
+                    startKey = KeyUtils.getNextKeyInByteOrder(lastKey);
+                }
             } catch (Exception e) {
                 throw new TiClientInternalException("Error Closing Store client.", e);
             }
@@ -150,8 +174,8 @@ public class Snapshot {
 
     public static class Version {
         public static Version getCurrentTSAsVersion() {
-            long ts = System.nanoTime() / TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
-            return new Version(ts);
+            long t = System.currentTimeMillis() << EPOCH_SHIFT_BITS;
+            return new Version(t);
         }
 
         private final long version;

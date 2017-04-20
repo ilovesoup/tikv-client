@@ -18,7 +18,10 @@ package com.pingcap.tikv;
 import com.google.common.collect.ImmutableList;
 import com.pingcap.tikv.catalog.Catalog;
 import com.pingcap.tikv.catalog.CatalogTrasaction;
+import com.pingcap.tikv.meta.DBInfo;
 import org.junit.Test;
+
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -32,6 +35,7 @@ public class SnapshotTest {
         RegionManager mgr = new RegionManager(client);
         Snapshot snapshot = new Snapshot(mgr, session);
         Catalog cat = new Catalog(snapshot);
-        cat.listDatabases();
+        List<DBInfo> dbInfoList = cat.listDatabases();
+        return;
     }
 }

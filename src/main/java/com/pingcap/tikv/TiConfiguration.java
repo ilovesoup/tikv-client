@@ -28,9 +28,11 @@ import java.util.concurrent.TimeUnit;
 public class TiConfiguration {
     public static final int                     DEF_TIMEOUT = 3;
     public static final TimeUnit                DEF_TIMEOUT_UNIT = TimeUnit.SECONDS;
+    public static final int                     DEF_SCAN_BATCH_SIZE = 100;
 
     private int                                 timeout = DEF_TIMEOUT;
     private TimeUnit                            timeoutUnit = DEF_TIMEOUT_UNIT;
+    private int                                 scanBatchSize = DEF_SCAN_BATCH_SIZE;
     private List<HostAndPort>                   pdAddrs = new ArrayList<>();
 
     public static TiConfiguration createDefault(List<String> pdAddrs) {
@@ -58,5 +60,9 @@ public class TiConfiguration {
 
     public List<HostAndPort> getPdAddrs() {
         return pdAddrs;
+    }
+
+    public int getScanBatchSize() {
+        return scanBatchSize;
     }
 }

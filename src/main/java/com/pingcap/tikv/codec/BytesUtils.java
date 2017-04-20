@@ -24,7 +24,7 @@ import java.util.Arrays;
 public class BytesUtils {
     private static final int GRP_SIZE = 8;
     private static final byte [] PADS = new byte[GRP_SIZE];
-    private static final byte MARKER = (byte)0xFF;
+    private static final int MARKER = 0xFF;
     private static final byte PAD = (byte)0x0;
     // EncodeBytes guarantees the encoded value is in ascending order for comparison,
     // encoding with the following rule:
@@ -52,32 +52,35 @@ public class BytesUtils {
         }
     }
 
+    public static byte[] readBytes(CodecDataInput cdi) {
+        return readBytes(cdi, false);
+    }
+
     public static byte[] readBytes(CodecDataInput cdi, boolean reverse) {
         CodecDataOutput cdo = new CodecDataOutput();
-        int idx = 0;
         while (true) {
             byte[] groupBytes = new byte[GRP_SIZE + 1];
 
             cdi.readFully(groupBytes, 0, GRP_SIZE + 1);
-            byte[] group = Arrays.copyOfRange(groupBytes, 0, groupBytes.length - 1);
+            byte[] group = Arrays.copyOfRange(groupBytes, 0, GRP_SIZE);
 
-            byte padCount;
-            byte marker = groupBytes[GRP_SIZE];
+            int padCount;
+            int marker = Byte.toUnsignedInt(groupBytes[GRP_SIZE]);
 
             if (reverse) {
                 padCount = marker;
             } else {
-                padCount = (byte) (MARKER - marker);
+                padCount = MARKER - marker;
             }
 
-            checkArgument(padCount > GRP_SIZE);
+            checkArgument(padCount < GRP_SIZE);
             int realGroupSize = GRP_SIZE - padCount;
             cdo.write(group, 0, realGroupSize);
-            idx += GRP_SIZE + 1;
+
             if (padCount != 0) {
                 byte padByte = PAD;
                 if (reverse) {
-                    padByte = MARKER;
+                    padByte = (byte)MARKER;
                 }
                 // Check validity of padding bytes.
 

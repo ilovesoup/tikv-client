@@ -32,13 +32,13 @@ public class DBInfo {
 
     @JsonCreator
     public DBInfo(@JsonProperty("id")long               id,
-                  @JsonProperty("db_name")String        name,
+                  @JsonProperty("db_name")CIStr         name,
                   @JsonProperty("charset")String        charset,
                   @JsonProperty("collate")String        collate,
                   @JsonProperty("-")List<TableInfo>     tables,
                   @JsonProperty("state")int             schemaState) {
         this.id = id;
-        this.name = name;
+        this.name = name.getL();
         this.charset = charset;
         this.collate = collate;
         this.tables = tables;

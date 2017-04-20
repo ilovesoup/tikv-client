@@ -105,6 +105,7 @@ public class RegionStoreClient extends AbstractGrpcClient<TiKVBlockingStub, TiKV
                 .setStartKey(startKey)
                 .setVersion(version)
                 .setKeyOnly(keyOnly)
+                .setLimit(getConf().getScanBatchSize())
                 .build();
         ScanResponse resp = callWithRetry(TiKVGrpc.METHOD_KV_SCAN, request);
         return resp.getPairsList();

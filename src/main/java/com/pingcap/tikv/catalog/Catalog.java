@@ -25,11 +25,14 @@ import com.pingcap.tikv.TiClientInternalException;
 import com.pingcap.tikv.meta.DBInfo;
 import com.pingcap.tikv.meta.TableInfo;
 import com.pingcap.tikv.util.Pair;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 
 
 public class Catalog {
+    protected static final Logger logger = LogManager.getFormatterLogger(Catalog.class);
     private static ByteString KEY_DB = ByteString.copyFromUtf8("DBs");
     private static ByteString KEY_TABLE = ByteString.copyFromUtf8("Table");
 
@@ -90,11 +93,12 @@ public class Catalog {
     }
 
     private static <T> T parseFromJson(ByteString json, Class<T> cls) {
+        logger.error("Parse Json %s : %s", cls.getSimpleName(), json.toStringUtf8());
         ObjectMapper mapper = new ObjectMapper();
         try {
-            return mapper.readValue(json.toString(), cls);
+            return mapper.readValue(json.toStringUtf8(), cls);
         } catch (JsonParseException | JsonMappingException e) {
-            throw new TiClientInternalException("Invalid JSON value:\n" + json, e);
+            throw new TiClientInternalException("Invalid JSON value:\n" + json.toStringUtf8(), e);
         } catch (Exception e1) {
             throw new TiClientInternalException("Error parsing Json", e1);
         }

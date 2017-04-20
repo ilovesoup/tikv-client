@@ -23,7 +23,7 @@ import java.io.DataInputStream;
 public class CodecDataInput implements DataInput {
     private DataInputStream s;
     private int size;
-    public CodecDataInput(byte [] buf) {
+    public CodecDataInput(byte[] buf) {
         size = buf.length;
         s = new DataInputStream(new ByteArrayInputStream(buf));
     }

@@ -77,7 +77,6 @@ public class Catalog {
         try {
             ByteString json = trx.hashGet(KEY_DB, dbKey);
             return parseFromJson(json, DBInfo.class);
-
         } catch (Exception e) {
             // TODO: Handle key not exists and let loose others
             return null;

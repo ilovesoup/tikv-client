@@ -20,22 +20,27 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.List;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TableInfo {
-    private long        id;
-    private String      name;
-    private String      charset;
-    private String      collate;
+    private long                id;
+    private String              name;
+    private String              charset;
+    private String              collate;
+    private List<ColumnInfo>    columns;
 
     @JsonCreator
     public TableInfo(@JsonProperty("id")long               id,
                      @JsonProperty("name")CIStr            name,
                      @JsonProperty("charset")String        charset,
-                     @JsonProperty("collate")String        collate) {
+                     @JsonProperty("collate")String        collate,
+                     @JsonProperty("cols")List<ColumnInfo> columns) {
         this.id = id;
         this.name = name.getL();
         this.charset = charset;
         this.collate = collate;
+        this.columns = columns;
     }
 
     public long getId() {
@@ -52,5 +57,9 @@ public class TableInfo {
 
     public String getCollate() {
         return collate;
+    }
+
+    public List<ColumnInfo> getColumns() {
+        return columns;
     }
 }

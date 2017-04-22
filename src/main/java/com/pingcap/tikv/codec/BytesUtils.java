@@ -73,7 +73,7 @@ public class BytesUtils {
                 padCount = MARKER - marker;
             }
 
-            checkArgument(padCount < GRP_SIZE);
+            checkArgument(padCount <= GRP_SIZE);
             int realGroupSize = GRP_SIZE - padCount;
             cdo.write(group, 0, realGroupSize);
 

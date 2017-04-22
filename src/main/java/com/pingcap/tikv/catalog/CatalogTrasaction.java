@@ -15,6 +15,7 @@
 
 package com.pingcap.tikv.catalog;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.protobuf.ByteString;
 import com.pingcap.tikv.Snapshot;
@@ -100,7 +101,7 @@ public class CatalogTrasaction {
                                 .transform(kv -> Pair.create(decodeHashDataKey(kv.getKey()).second, kv.getValue()));
 
         // Copy to a list just in case since iterator cannot rewind
-        return Lists.newArrayList(iter);
+        return ImmutableList.copyOf(iter);
     }
 
     public ByteString getBytesValue(ByteString key) {

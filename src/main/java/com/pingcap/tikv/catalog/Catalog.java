@@ -19,12 +19,15 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Table;
 import com.google.protobuf.ByteString;
 import com.pingcap.tikv.Snapshot;
 import com.pingcap.tikv.TiClientInternalException;
+import com.pingcap.tikv.codec.KeyUtils;
 import com.pingcap.tikv.meta.DBInfo;
 import com.pingcap.tikv.meta.TableInfo;
 import com.pingcap.tikv.util.Pair;
+import com.pingcap.tikv.util.TiFluentIterable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -63,12 +66,12 @@ public class Catalog {
             throw new TiClientInternalException("Database not exists: " + db.getName());
         }
 
-        List<Pair<ByteString, ByteString>> result = trx.hashGetFields(dbKey);
-        ImmutableList.Builder<TableInfo> tables = ImmutableList.builder();
-        for (Pair<ByteString, ByteString> p : result) {
-            tables.add(parseFromJson(p.second, TableInfo.class));
-        }
-        return tables.build();
+        Iterable<TableInfo> iter =
+                TiFluentIterable.from(trx.hashGetFields(dbKey))
+                                .filter(kv -> KeyUtils.hasPrefix(kv.first, KEY_TABLE))
+                                .transform(kv -> parseFromJson(kv.second, TableInfo.class));
+
+        return ImmutableList.copyOf(iter);
     }
 
     public DBInfo getDatabase(ByteString dbKey) {
@@ -98,7 +101,10 @@ public class Catalog {
         try {
             return mapper.readValue(json.toStringUtf8(), cls);
         } catch (JsonParseException | JsonMappingException e) {
-            throw new TiClientInternalException("Invalid JSON value:\n" + json.toStringUtf8(), e);
+            String errMsg = String.format("Invalid JSON value for Type %s: %s\n",
+                                          cls.getSimpleName(),
+                                          json.toStringUtf8());
+            throw new TiClientInternalException(errMsg, e);
         } catch (Exception e1) {
             throw new TiClientInternalException("Error parsing Json", e1);
         }

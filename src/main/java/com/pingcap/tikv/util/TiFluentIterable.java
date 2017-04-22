@@ -17,9 +17,11 @@ package com.pingcap.tikv.util;
 
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -39,15 +41,20 @@ public class TiFluentIterable<E> implements Iterable<E> {
     }
 
     public static <E> TiFluentIterable<E> from(Iterator<E> iter) {
+        checkNotNull(iter);
         return from(new IteratorIterable(iter));
     }
 
     public TiFluentIterable<E> stopWhen(Predicate<? super E> pred) {
-        return from(UntilIterator.decorate(iter, pred));
+        return from(UntilIterable.decorate(iter, pred));
     }
 
     public <T> TiFluentIterable<T> transform(Function<? super E, T> function) {
         return from(Iterables.transform(iter, function));
+    }
+
+    public final TiFluentIterable<E> filter(Predicate<? super E> predicate) {
+        return from(Iterables.filter(iter, predicate));
     }
 
     @Override
@@ -55,63 +62,77 @@ public class TiFluentIterable<E> implements Iterable<E> {
         return iter.iterator();
     }
 
+    // Iterator is not rewindable so that we need a copy of values
     private static class IteratorIterable<E> implements Iterable<E> {
-        private IteratorIterable(Iterator<E> iter) {
-            this.iter = iter;
-        }
+        private List<E> rewindBuf;
 
-        private Iterator<E>     iter;
+        private IteratorIterable(Iterator<E> iter) {
+            this.rewindBuf = ImmutableList.copyOf(iter);
+        }
 
         @Override
         public Iterator<E> iterator() {
-            return iter;
+            return rewindBuf.iterator();
         }
     }
 
-    private static class UntilIterator<E> implements Iterator<E> {
+    private static class UntilIterable<E> implements Iterable<E> {
         private final Predicate<? super E> pred;
-        private final Iterator<E>  iter;
+        private final Iterable<E>  iter;
 
-        private boolean more = true;
-        private E       peeked;
-
-        public static <E> UntilIterator<E> decorate(Iterable<E> iter, Predicate<? super E> pred) {
-            return new UntilIterator(iter.iterator(), pred);
+        public static <E> UntilIterable<E> decorate(Iterable<E> iter, Predicate<? super E> pred) {
+            return new UntilIterable(iter, pred);
         }
 
-        private UntilIterator(Iterator<E> iter, Predicate<? super E> pred) {
+        private UntilIterable(Iterable<E> iter, Predicate<? super E> pred) {
             this.pred = pred;
             this.iter = iter;
         }
 
         @Override
-        public boolean hasNext() {
-            if (!iter.hasNext()) {
-                return false;
-            }
-            return maybeReadAndCheck();
+        public Iterator<E> iterator() {
+            return new UntilIterator();
         }
 
-        private boolean maybeReadAndCheck() {
-            if (peeked == null) {
-                peeked = iter.next();
-                if (pred.apply(peeked)) {
-                    more = false;
+        private class UntilIterator implements Iterator<E> {
+            private final Iterator<E> iterator;
+
+            private boolean more = true;
+            private E       peeked;
+
+            private UntilIterator() {
+                this.iterator = iter.iterator();
+            }
+
+            @Override
+            public boolean hasNext() {
+                if (!iterator.hasNext()) {
+                    return false;
                 }
+                return maybeReadAndCheck();
             }
-            return more;
-        }
 
-        @Override
-        public E next() {
-            if (!more) {
-                throw new NoSuchElementException();
+            private boolean maybeReadAndCheck() {
+                if (peeked == null) {
+                    peeked = iterator.next();
+                    if (pred.apply(peeked)) {
+                        more = false;
+                    }
+                }
+                return more;
             }
-            maybeReadAndCheck();
 
-            E value = peeked;
-            peeked = null;
-            return value;
+            @Override
+            public E next() {
+                if (!more) {
+                    throw new NoSuchElementException();
+                }
+                maybeReadAndCheck();
+
+                E value = peeked;
+                peeked = null;
+                return value;
+            }
         }
     }
 }

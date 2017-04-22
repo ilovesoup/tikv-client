@@ -29,11 +29,11 @@ public class TableInfo {
 
     @JsonCreator
     public TableInfo(@JsonProperty("id")long               id,
-                     @JsonProperty("name")String           name,
+                     @JsonProperty("name")CIStr            name,
                      @JsonProperty("charset")String        charset,
                      @JsonProperty("collate")String        collate) {
         this.id = id;
-        this.name = name;
+        this.name = name.getL();
         this.charset = charset;
         this.collate = collate;
     }

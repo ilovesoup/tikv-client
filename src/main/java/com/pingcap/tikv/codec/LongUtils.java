@@ -15,15 +15,13 @@
 
 package com.pingcap.tikv.codec;
 
-import com.pingcap.tikv.codec.CodecDataInput;
-import com.pingcap.tikv.codec.CodecDataOutput;
-import com.pingcap.tikv.codec.CodecUtil;
+import com.pingcap.tikv.TiClientInternalException;
 
 public class LongUtils {
-    private static final byte INT_FLAG = 3;
-    private static final byte UINT_FLAG = 4;
-    private static final byte VARINT_FLAG = 8;
-    private static final byte UVARINT_FLAG = 9;
+    public static final byte INT_FLAG = 3;
+    public static final byte UINT_FLAG = 4;
+    public static final byte VARINT_FLAG = 8;
+    public static final byte UVARINT_FLAG = 9;
 
     public static void writeLongFull(CodecDataOutput cdo, long lVal, boolean comparable) {
         if (comparable) {
@@ -68,6 +66,32 @@ public class LongUtils {
             value >>>= 7;
         }
         cdo.writeByte((byte)value);
+    }
+
+    private static boolean isValidFlag(byte flag, boolean unsigned) {
+        if (unsigned && (flag == UINT_FLAG || flag == UVARINT_FLAG)) {
+            return true;
+        }
+        if (!unsigned && (flag == INT_FLAG || flag == VARINT_FLAG)) {
+            return true;
+        }
+        return false;
+    }
+
+    public static long readLongFully(CodecDataInput cdi) {
+        byte flag = cdi.readByte();
+        if (isValidFlag(flag, false)) {
+            throw new TiClientInternalException("Invalid Flag type for signed long type: " + flag);
+        }
+        return readLong(cdi);
+    }
+
+    public static long readULongFully(CodecDataInput cdi) {
+        byte flag = cdi.readByte();
+        if (isValidFlag(flag, true)) {
+            throw new TiClientInternalException("Invalid Flag type for unsigned long type: " + flag);
+        }
+        return readULong(cdi);
     }
 
     public static long readLong(CodecDataInput cdi) {

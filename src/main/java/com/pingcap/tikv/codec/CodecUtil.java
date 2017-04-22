@@ -18,6 +18,9 @@ package com.pingcap.tikv.codec;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+import com.pingcap.tikv.meta.ObjectRowImpl;
+import com.pingcap.tikv.meta.Row;
+import com.pingcap.tikv.type.FieldType;
 import com.pingcap.tikv.util.Pair;
 
 // Basically all protobuf ByteString involves buffer copy

@@ -48,12 +48,11 @@ public class Catalog {
     }
 
     public List<DBInfo> listDatabases() {
-        List<Pair<ByteString, ByteString>> result = trx.hashGetFields(KEY_DB);
-        ImmutableList.Builder<DBInfo> dbs = ImmutableList.builder();
-        for (Pair<ByteString, ByteString> p : result) {
-            dbs.add(parseFromJson(p.second, DBInfo.class));
-        }
-        return dbs.build();
+        Iterable<DBInfo> iter =
+                TiFluentIterable.from(trx.hashGetFields(KEY_DB))
+                                .transform(kv -> parseFromJson(kv.second, DBInfo.class));
+
+        return ImmutableList.copyOf(iter);
     }
 
     public DBInfo getDatabase(long id) {
@@ -96,7 +95,7 @@ public class Catalog {
     }
 
     private static <T> T parseFromJson(ByteString json, Class<T> cls) {
-        logger.error("Parse Json %s : %s", cls.getSimpleName(), json.toStringUtf8());
+        logger.debug("Parse Json %s : %s", cls.getSimpleName(), json.toStringUtf8());
         ObjectMapper mapper = new ObjectMapper();
         try {
             return mapper.readValue(json.toStringUtf8(), cls);

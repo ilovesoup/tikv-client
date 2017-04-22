@@ -50,9 +50,8 @@ public class SnapshotTest {
         List<DBInfo> dbInfoList = cat.listDatabases();
         for (DBInfo dbInfo : dbInfoList) {
             List<TableInfo> tableInfoList = cat.listTables(dbInfo);
-            if (tableInfoList.size() != 0) {
-                TableInfo t = tableInfoList.get(0);
-                System.out.println(t.getId());
+            for (TableInfo t : tableInfoList) {
+                System.out.println(t.getName());
             }
         }
         return;

@@ -15,6 +15,8 @@
 
 package com.pingcap.tikv.codec;
 
+import com.google.protobuf.ByteString;
+
 import java.io.ByteArrayInputStream;
 import java.io.DataInput;
 import java.io.DataInputStream;
@@ -23,6 +25,11 @@ import java.io.DataInputStream;
 public class CodecDataInput implements DataInput {
     private DataInputStream s;
     private int size;
+
+    public CodecDataInput(ByteString data) {
+        this(data.toByteArray());
+    }
+
     public CodecDataInput(byte[] buf) {
         size = buf.length;
         s = new DataInputStream(new ByteArrayInputStream(buf));

@@ -18,35 +18,45 @@ package com.pingcap.tikv.meta;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.collect.ImmutableMap;
+import com.pingcap.tidb.tipb.ColumnInfo;
 import com.pingcap.tikv.TiClientInternalException;
 import com.pingcap.tikv.type.FieldType;
 import com.pingcap.tikv.type.LongType;
 import com.pingcap.tikv.type.StringType;
 
-import javax.activation.UnsupportedDataTypeException;
+import java.util.List;
+import java.util.Map;
+
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ColumnInfo {
+public class TiColumnInfo {
     private final long        id;
     private final String      name;
     private final int         offset;
     private final FieldType   type;
     private final SchemaState schemaState;
     private final String      comment;
+    private final boolean     isPrimaryKey;
+
+    private static final int PK_MASK = 0x2;
 
     @JsonCreator
-    public ColumnInfo(@JsonProperty("id")long                   id,
-                      @JsonProperty("name")CIStr                name,
-                      @JsonProperty("offset")int                offset,
-                      @JsonProperty("type")InternalTypeHolder   type,
-                      @JsonProperty("state")int                 schemaState,
-                      @JsonProperty("comment")String            comment) {
+    public TiColumnInfo(@JsonProperty("id")long                   id,
+                        @JsonProperty("name")CIStr                name,
+                        @JsonProperty("offset")int                offset,
+                        @JsonProperty("type")InternalTypeHolder   type,
+                        @JsonProperty("state")int                 schemaState,
+                        @JsonProperty("comment")String            comment) {
         this.id = id;
         this.name = name.getL();
         this.offset = offset;
         this.type = type.toFieldType();
         this.schemaState = SchemaState.fromValue(schemaState);
         this.comment = comment;
+        // I don't think pk flag should be set on type
+        // Refactor against original tidb code
+        this.isPrimaryKey = (type.getFlag() & PK_MASK) > 0;
     }
 
     public long getId() {
@@ -73,18 +83,31 @@ public class ColumnInfo {
         return comment;
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private static class InternalTypeHolder {
-        private final int         tp;
-        private final int         flag;
-        private final int         flen;
-        private final int         decimal;
-        private final String      charset;
-        private final String      collate;
+    public boolean isPrimaryKey() {
+        return isPrimaryKey;
+    }
 
-        private static final int TYPE_LONG        = 1;
-        private static final int TYPE_STRING      = 0xfe;
-        private static final int MASK_UNSIGNED    = 0x20;
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class InternalTypeHolder {
+        private final int          tp;
+        private final int          flag;
+        private final int          flen;
+        private final int          decimal;
+        private final String       charset;
+        private final String       collate;
+        private final List<String> elems;
+
+        interface Builder<E extends FieldType> {
+            E build(InternalTypeHolder holder);
+        }
+
+        private static Map<Integer, Builder<? extends FieldType>> typeBuilder;
+        static {
+            typeBuilder = ImmutableMap.<Integer, Builder<? extends FieldType>>builder()
+                    .put(LongType.TYPE_CODE, holder -> new LongType(holder))
+                    .put(StringType.TYPE_CODE, holder -> new StringType(holder))
+                    .build();
+        }
 
         @JsonCreator
         public InternalTypeHolder(@JsonProperty("Tp")int                tp,
@@ -92,13 +115,15 @@ public class ColumnInfo {
                                   @JsonProperty("Flen")int              flen,
                                   @JsonProperty("Decimal")int           decimal,
                                   @JsonProperty("Charset")String        charset,
-                                  @JsonProperty("Collate")String        collate) {
+                                  @JsonProperty("Collate")String        collate,
+                                  @JsonProperty("Elems")List<String>    elems) {
             this.tp = tp;
             this.flag = flag;
             this.flen = flen;
             this.decimal = decimal;
             this.charset = charset;
             this.collate = collate;
+            this.elems = elems;
         }
 
         public int getTp() {
@@ -125,21 +150,30 @@ public class ColumnInfo {
             return collate;
         }
 
-        public FieldType toFieldType() {
-            switch (tp) {
-                case TYPE_LONG:
-                    if ((flag & MASK_UNSIGNED) != 0) {
-                        return LongType.ULONG_TYPE;
-                    } else {
-                        return LongType.LONG_TYPE;
-                    }
-                case TYPE_STRING:
-                    return StringType.STRING_TYPE;
-                default:
-                    // TODO: Handle other types
-                    // throw new TiClientInternalException("Unsupported type code:" + tp);
-                    return null;
-            }
+        public List<String> getElems() {
+            return elems;
         }
+
+        public FieldType toFieldType() {
+            Builder<? extends FieldType> builder = typeBuilder.get(getTp());
+            if (builder == null) {
+                throw new TiClientInternalException("Invalid type code: " + getTp());
+            }
+            return builder.build(this);
+        }
+    }
+
+    public ColumnInfo toProto() {
+        return toProtoBuilder().build();
+    }
+
+    public ColumnInfo.Builder toProtoBuilder() {
+        return ColumnInfo.newBuilder()
+                .setColumnId(id)
+                .setCollation(type.getCollationCode())
+                .setColumnLen(type.getLength())
+                .setDecimal(type.getDecimal())
+                .setFlag(type.getFlag())
+                .addAllElems(type.getElems());
     }
 }

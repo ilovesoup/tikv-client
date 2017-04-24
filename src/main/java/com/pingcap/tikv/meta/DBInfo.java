@@ -17,8 +17,6 @@ package com.pingcap.tikv.meta;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.protobuf.ByteString;
 
 import java.util.List;
 
@@ -27,7 +25,7 @@ public class DBInfo {
     private String              name;
     private String              charset;
     private String              collate;
-    private List<TableInfo>     tables;
+    private List<TiTableInfo>     tables;
     private SchemaState         schemaState;
 
     @JsonCreator
@@ -35,7 +33,7 @@ public class DBInfo {
                   @JsonProperty("db_name")CIStr         name,
                   @JsonProperty("charset")String        charset,
                   @JsonProperty("collate")String        collate,
-                  @JsonProperty("-")List<TableInfo>     tables,
+                  @JsonProperty("-")List<TiTableInfo>     tables,
                   @JsonProperty("state")int             schemaState) {
         this.id = id;
         this.name = name.getL();
@@ -61,7 +59,7 @@ public class DBInfo {
         return collate;
     }
 
-    public List<TableInfo> getTables() {
+    public List<TiTableInfo> getTables() {
         return tables;
     }
 

@@ -104,7 +104,8 @@ public class LongUtils {
 
     public static long readVarLong(CodecDataInput cdi) {
         long ux = readUVarLong(cdi);
-        long x = ux >> 1;
+        // shift as unsigned
+        long x = ux >>> 1;
         if ((ux & 1) != 0) {
             x = ~x;
         }
@@ -115,7 +116,7 @@ public class LongUtils {
         long x = 0;
         int s = 0;
         for (int i = 0; !cdi.eof(); i++) {
-            byte b = cdi.readByte();
+            int b = cdi.readUnsignedByte();
             if (b < 0x80) {
                 if (i > 9 || i == 9 && b > 1) {
                     return 0;

@@ -22,7 +22,7 @@ import com.pingcap.tikv.type.FieldType;
 public class DefaultRowReader {
     private final CodecDataInput cdi;
 
-    public DefaultRowReader create(CodecDataInput cdi) {
+    public static DefaultRowReader create(CodecDataInput cdi) {
         return new DefaultRowReader(cdi);
     }
 

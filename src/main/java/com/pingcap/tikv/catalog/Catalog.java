@@ -19,14 +19,12 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Table;
 import com.google.protobuf.ByteString;
 import com.pingcap.tikv.Snapshot;
 import com.pingcap.tikv.TiClientInternalException;
 import com.pingcap.tikv.codec.KeyUtils;
 import com.pingcap.tikv.meta.DBInfo;
-import com.pingcap.tikv.meta.TableInfo;
-import com.pingcap.tikv.util.Pair;
+import com.pingcap.tikv.meta.TiTableInfo;
 import com.pingcap.tikv.util.TiFluentIterable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -59,16 +57,16 @@ public class Catalog {
         return getDatabase(encodeId(id));
     }
 
-    public List<TableInfo> listTables(DBInfo db) {
+    public List<TiTableInfo> listTables(DBInfo db) {
         ByteString dbKey = encodeId(db.getId());
         if (databaseExists(dbKey)) {
             throw new TiClientInternalException("Database not exists: " + db.getName());
         }
 
-        Iterable<TableInfo> iter =
+        Iterable<TiTableInfo> iter =
                 TiFluentIterable.from(trx.hashGetFields(dbKey))
                                 .filter(kv -> KeyUtils.hasPrefix(kv.first, KEY_TABLE))
-                                .transform(kv -> parseFromJson(kv.second, TableInfo.class));
+                                .transform(kv -> parseFromJson(kv.second, TiTableInfo.class));
 
         return ImmutableList.copyOf(iter);
     }

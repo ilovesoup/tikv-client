@@ -17,9 +17,14 @@ package com.pingcap.tikv.type;
 
 import com.pingcap.tikv.codec.CodecDataInput;
 import com.pingcap.tikv.meta.Row;
+import com.pingcap.tikv.meta.TiColumnInfo;
 
 public class StringType extends FieldType {
-    public static final StringType STRING_TYPE = new StringType();
+    public static final int TYPE_CODE = 0xfe;
+
+    public StringType(TiColumnInfo.InternalTypeHolder holder) {
+        super(holder);
+    }
 
     @Override
     protected void decodeValueNoNullToRow(CodecDataInput cdi, Row row, int pos) {
@@ -27,12 +32,16 @@ public class StringType extends FieldType {
     }
 
     @Override
-    protected boolean isValidFlag(byte flag) {
+    protected boolean isValidFlag(int flag) {
         return false;
     }
 
     @Override
     public String toString() {
         return "StringType";
+    }
+
+    public int getTypeFlag() {
+        return TYPE_CODE;
     }
 }

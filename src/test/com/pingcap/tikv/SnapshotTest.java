@@ -16,10 +16,17 @@
 package com.pingcap.tikv;
 
 import com.google.common.collect.ImmutableList;
+import com.google.protobuf.ByteString;
 import com.pingcap.tikv.catalog.Catalog;
-import com.pingcap.tikv.catalog.CatalogTrasaction;
+import com.pingcap.tikv.codec.CodecDataInput;
+import com.pingcap.tikv.codec.CodecDataOutput;
+import com.pingcap.tikv.codec.CodecUtil;
+import com.pingcap.tikv.codec.DefaultRowReader;
 import com.pingcap.tikv.meta.DBInfo;
-import com.pingcap.tikv.meta.TableInfo;
+import com.pingcap.tikv.meta.Row;
+import com.pingcap.tikv.meta.TiTableInfo;
+import com.pingcap.tikv.type.FieldType;
+import com.pingcap.tikv.type.LongType;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -28,8 +35,6 @@ import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.junit.Test;
 
 import java.util.List;
-
-import static org.junit.Assert.*;
 
 
 public class SnapshotTest {
@@ -48,12 +53,21 @@ public class SnapshotTest {
         Snapshot snapshot = new Snapshot(mgr, session);
         Catalog cat = new Catalog(snapshot);
         List<DBInfo> dbInfoList = cat.listDatabases();
+        TiTableInfo table = null;
         for (DBInfo dbInfo : dbInfoList) {
-            List<TableInfo> tableInfoList = cat.listTables(dbInfo);
-            for (TableInfo t : tableInfoList) {
-                System.out.println(t.getName());
+            List<TiTableInfo> tableInfoList = cat.listTables(dbInfo);
+            for (TiTableInfo t : tableInfoList) {
+                if (t.getName().equals("t2")) {
+                    table = t;
+                }
             }
         }
+
+        CodecDataOutput cdo = new CodecDataOutput();
+        CodecUtil.writeRowKeyWithHandle(cdo, table.getId(), 233);
+        ByteString result = snapshot.get(cdo.toByteString());
+        DefaultRowReader reader = DefaultRowReader.create(new CodecDataInput(result));
+        Row row = reader.readRow(new FieldType[] {LongType.DEF_VLONG, LongType.DEF_VLONG, LongType.DEF_VLONG});
         return;
     }
 }

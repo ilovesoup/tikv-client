@@ -63,11 +63,7 @@ public class SnapshotTest {
             }
         }
 
-        CodecDataOutput cdo = new CodecDataOutput();
-        CodecUtil.writeRowKeyWithHandle(cdo, table.getId(), 233);
-        ByteString result = snapshot.get(cdo.toByteString());
-        DefaultRowReader reader = DefaultRowReader.create(new CodecDataInput(result));
-        Row row = reader.readRow(new FieldType[] {LongType.DEF_VLONG, LongType.DEF_VLONG, LongType.DEF_VLONG});
+
         return;
     }
 }

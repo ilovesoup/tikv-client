@@ -18,6 +18,7 @@ package com.pingcap.tikv.codec;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+import com.google.protobuf.ByteString;
 import com.pingcap.tikv.meta.ObjectRowImpl;
 import com.pingcap.tikv.meta.Row;
 import com.pingcap.tikv.type.FieldType;
@@ -47,6 +48,13 @@ public class CodecUtil {
         cdo.write(TBL_PREFIX);
         LongUtils.writeLong(cdo, tableId);
         cdo.write(REC_PREFIX_SEP);
+    }
+
+    public static ByteString encodeRowKeyWithHandle(long tableId, long handle) {
+        CodecDataOutput cdo = new CodecDataOutput();
+        writeTableRecordPrefix(cdo, tableId);
+        LongUtils.writeLong(cdo, handle);
+        return cdo.toByteString();
     }
 
     public static void writeRowKeyWithHandle(CodecDataOutput cdo, long tableId, long handle) {

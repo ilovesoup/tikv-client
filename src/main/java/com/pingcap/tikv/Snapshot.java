@@ -16,19 +16,26 @@
 package com.pingcap.tikv;
 
 
+import com.google.common.base.Optional;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Range;
 import com.google.protobuf.ByteString;
+import com.pingcap.tidb.tipb.SelectRequest;
+import com.pingcap.tidb.tipb.SelectResponse;
+import com.pingcap.tikv.codec.CodecUtil;
 import com.pingcap.tikv.codec.KeyUtils;
 import com.pingcap.tikv.grpc.Kvrpcpb.KvPair;
 import com.pingcap.tikv.grpc.Metapb.Store;
 import com.pingcap.tikv.grpc.Metapb.Region;
+import com.pingcap.tikv.meta.TiRange;
+import com.pingcap.tikv.meta.TiTableInfo;
 import com.pingcap.tikv.util.Pair;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.NoSuchElementException;
 
 public class Snapshot {
     private final Version version;
@@ -66,13 +73,14 @@ public class Snapshot {
         return client.get(key, version.getVersion());
     }
 
-    private class ScanIterator implements Iterator<KvPair> {
-        private List<KvPair>    currentCache;
-        private ByteString      startKey;
-        private int             index = -1;
-        private boolean         eof = false;
+    private class MultiRegionSeqIterator implements Iterator<KvPair> {
+        private List<KvPair>                          currentCache;
+        private ByteString                            startKey;
+        private Optional<TiRange<ByteString>>         keyRange;
+        private int                                   index = -1;
+        private boolean                               eof = false;
 
-        public ScanIterator(ByteString startKey) {
+        public MultiRegionSeqIterator(ByteString startKey) {
             this.startKey = startKey;
         }
 
@@ -95,7 +103,7 @@ public class Snapshot {
                 if (currentCache.size() < conf.getScanBatchSize()) {
                     // Current region done, start new batch from next region
                     startKey = region.getEndKey();
-                    if (startKey.size() == 0) {
+                    if (startKey.size() == 0 || !contains(startKey)) {
                         eof = true;
                     }
                 } else {
@@ -115,26 +123,68 @@ public class Snapshot {
         public boolean hasNext() {
             if (index == -1 || index >= currentCache.size()) {
                 if (!loadCache()) {
+                    eof = true;
                     return false;
                 }
+            }
+            if (!contains(currentCache.get(index).getKey())) {
+                eof = true;
+                return false;
             }
             return true;
         }
 
+        private boolean contains(ByteString key) {
+            if (keyRange.isPresent() &&
+                !keyRange.get().contains(key)) {
+                return false;
+            }
+            return true;
+        }
+
+        private KvPair getCurrent() {
+            if (eof) {
+                throw new NoSuchElementException();
+            }
+            if (index < currentCache.size()) {
+                KvPair kv = currentCache.get(index++);
+                if (!contains(kv.getKey())) {
+                    eof = true;
+                    throw new NoSuchElementException();
+                }
+                return kv;
+            }
+            return null;
+        }
+
         @Override
         public KvPair next() {
-            if (index < currentCache.size()) {
-                return currentCache.get(index++);
+            KvPair kv = getCurrent();
+            if (kv == null) {
+                // cache drained
+                if (!loadCache()) {
+                    return null;
+                }
+                return getCurrent();
             }
-            if (!loadCache()) {
-                return null;
-            }
-            return currentCache.get(index++);
+            return kv;
         }
     }
 
+    public Iterator<SelectResponse> select(TiTableInfo table, SelectRequest req, List<TiRange<Long>> ranges) {
+        ImmutableList.Builder<TiRange<ByteString>> builder = ImmutableList.builder();
+        for (TiRange<Long> r : ranges) {
+            ByteString lowKey = CodecUtil.encodeRowKeyWithHandle(table.getId(), r.getLowValue());
+            ByteString highKey = CodecUtil.encodeRowKeyWithHandle(table.getId(),
+                                                                  Math.max(r.getHighValue() + 1, Long.MAX_VALUE));
+            builder.add(TiRange.createByteStringRange(lowKey, highKey));
+        }
+        List<TiRange<ByteString>> keyRanges = builder.build();
+        MultiRegionSeqIterator
+    }
+
     public Iterator<KvPair> scan(ByteString startKey) {
-        return new ScanIterator(startKey);
+        return new MultiRegionSeqIterator(startKey);
     }
 
     // TODO: Do we really need to transfer key again?
@@ -171,6 +221,8 @@ public class Snapshot {
         }
         return result;
     }
+
+
 
     public static class Version {
         public static Version getCurrentTSAsVersion() {

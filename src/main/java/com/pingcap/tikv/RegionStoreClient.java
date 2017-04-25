@@ -18,6 +18,11 @@ package com.pingcap.tikv;
 
 import com.google.common.net.HostAndPort;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.pingcap.tidb.tipb.Select;
+import com.pingcap.tidb.tipb.SelectRequest;
+import com.pingcap.tidb.tipb.SelectResponse;
+import com.pingcap.tikv.grpc.Coprocessor;
 import com.pingcap.tikv.grpc.Kvrpcpb.Context;
 import com.pingcap.tikv.grpc.Kvrpcpb.GetRequest;
 import com.pingcap.tikv.grpc.Kvrpcpb.GetResponse;
@@ -43,6 +48,10 @@ public class RegionStoreClient extends AbstractGrpcClient<TiKVBlockingStub, TiKV
     private final TiKVBlockingStub          blockingStub;
     private final TiKVStub                  asyncStub;
     private final ManagedChannel            channel;
+
+    private final int ReqTypeSelect = 101;
+    private final int ReqTypeIndex = 102;
+    private final int ReqTypeDAG = 103;
 
     public ByteString get(ByteString key, long version) {
         GetRequest request = GetRequest.newBuilder()
@@ -124,6 +133,20 @@ public class RegionStoreClient extends AbstractGrpcClient<TiKVBlockingStub, TiKV
 
         callAsyncWithRetry(TiKVGrpc.METHOD_KV_SCAN, request, responseObserver);
         return responseObserver.getFuture();
+    }
+
+    public SelectResponse coprocess(SelectRequest req) {
+        Coprocessor.Request reqToSend = Coprocessor.Request.newBuilder()
+                .setContext(context)
+                .setTp(req.hasIndexInfo() ? ReqTypeIndex : ReqTypeSelect)
+                .setData(req.toByteString())
+                .build();
+        Coprocessor.Response resp = callWithRetry(TiKVGrpc.METHOD_COPROCESSOR, reqToSend);
+        try {
+            return SelectResponse.parseFrom(resp.getData());
+        } catch (InvalidProtocolBufferException e) {
+            throw new TiClientInternalException("Error parsing protobuf for coprocessor response.", e);
+        }
     }
 
     @Override

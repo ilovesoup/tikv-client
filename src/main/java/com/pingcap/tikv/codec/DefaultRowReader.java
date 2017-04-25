@@ -19,17 +19,18 @@ import com.pingcap.tikv.meta.ObjectRowImpl;
 import com.pingcap.tikv.meta.Row;
 import com.pingcap.tikv.type.FieldType;
 
-public class DefaultRowReader {
+public class DefaultRowReader implements RowReader {
     private final CodecDataInput cdi;
 
     public static DefaultRowReader create(CodecDataInput cdi) {
         return new DefaultRowReader(cdi);
     }
 
-    private DefaultRowReader(CodecDataInput cdi) {
+    DefaultRowReader(CodecDataInput cdi) {
         this.cdi = cdi;
     }
 
+    @Override
     public Row readRow(FieldType[] fieldTypes) {
         Row row = ObjectRowImpl.create(fieldTypes.length);
         for (int i = 0; i < fieldTypes.length; i++) {

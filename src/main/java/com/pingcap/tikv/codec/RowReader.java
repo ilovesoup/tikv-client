@@ -13,9 +13,12 @@
  * limitations under the License.
  */
 
-package com.pingcap.tikv.operation;
+package com.pingcap.tikv.codec;
+
+import com.pingcap.tikv.meta.Row;
+import com.pingcap.tikv.type.FieldType;
 
 
-public class Scanner {
-
+public interface RowReader {
+    Row readRow(FieldType[] fieldTypes);
 }

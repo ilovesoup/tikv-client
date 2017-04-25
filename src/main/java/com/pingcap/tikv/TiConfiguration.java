@@ -29,10 +29,14 @@ public class TiConfiguration {
     public static final int                     DEF_TIMEOUT = 3;
     public static final TimeUnit                DEF_TIMEOUT_UNIT = TimeUnit.SECONDS;
     public static final int                     DEF_SCAN_BATCH_SIZE = 100;
+    public static final boolean                 DEF_IGNORE_TRUNCATE = true;
+    public static final boolean                 DEF_TRUNCATE_AS_WARNING = false;
 
     private int                                 timeout = DEF_TIMEOUT;
     private TimeUnit                            timeoutUnit = DEF_TIMEOUT_UNIT;
     private int                                 scanBatchSize = DEF_SCAN_BATCH_SIZE;
+    private boolean                             ignoreTruncate = DEF_IGNORE_TRUNCATE;
+    private boolean                             truncateAsWarning = DEF_TRUNCATE_AS_WARNING;
     private List<HostAndPort>                   pdAddrs = new ArrayList<>();
 
     public static TiConfiguration createDefault(List<String> pdAddrs) {
@@ -64,5 +68,21 @@ public class TiConfiguration {
 
     public int getScanBatchSize() {
         return scanBatchSize;
+    }
+
+    public boolean isIgnoreTruncate() {
+        return ignoreTruncate;
+    }
+
+    public void setIgnoreTruncate(boolean ignoreTruncate) {
+        this.ignoreTruncate = ignoreTruncate;
+    }
+
+    public boolean isTruncateAsWarning() {
+        return truncateAsWarning;
+    }
+
+    public void setTruncateAsWarning(boolean truncateAsWarning) {
+        this.truncateAsWarning = truncateAsWarning;
     }
 }

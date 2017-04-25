@@ -16,6 +16,7 @@
 package com.pingcap.tikv;
 
 
+import com.google.common.collect.Iterables;
 import com.google.common.net.HostAndPort;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -36,6 +37,7 @@ import com.pingcap.tikv.grpc.Metapb.Store;
 import com.pingcap.tikv.grpc.TiKVGrpc;
 import com.pingcap.tikv.grpc.TiKVGrpc.TiKVBlockingStub;
 import com.pingcap.tikv.grpc.TiKVGrpc.TiKVStub;
+import com.pingcap.tikv.meta.TiRange;
 import com.pingcap.tikv.util.FutureObserver;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -135,11 +137,19 @@ public class RegionStoreClient extends AbstractGrpcClient<TiKVBlockingStub, TiKV
         return responseObserver.getFuture();
     }
 
-    public SelectResponse coprocess(SelectRequest req) {
+    private static Coprocessor.KeyRange rangeToProto(TiRange<ByteString> range) {
+        return Coprocessor.KeyRange.newBuilder()
+                .setStart(range.getLowValue())
+                .setEnd(range.getHighValue())
+                .build();
+    }
+
+    public SelectResponse coprocess(SelectRequest req, List<TiRange<ByteString>> ranges) {
         Coprocessor.Request reqToSend = Coprocessor.Request.newBuilder()
                 .setContext(context)
                 .setTp(req.hasIndexInfo() ? ReqTypeIndex : ReqTypeSelect)
                 .setData(req.toByteString())
+                .addAllRanges(Iterables.transform(ranges, r -> rangeToProto(r)))
                 .build();
         Coprocessor.Response resp = callWithRetry(TiKVGrpc.METHOD_COPROCESSOR, reqToSend);
         try {

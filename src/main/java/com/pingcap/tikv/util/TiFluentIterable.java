@@ -26,7 +26,8 @@ import java.util.NoSuchElementException;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-// Similar to Guava's FluentIterable
+// Similar to Guava's FluentIterable but over both iterator
+// and iterables. In addition, provide stopWhen interface
 public class TiFluentIterable<E> implements Iterable<E> {
     private final Iterable<E> iter;
 
@@ -55,6 +56,10 @@ public class TiFluentIterable<E> implements Iterable<E> {
 
     public final TiFluentIterable<E> filter(Predicate<? super E> predicate) {
         return from(Iterables.filter(iter, predicate));
+    }
+
+    public final E[] toArray(Class<E> type) {
+        return Iterables.toArray(iter, type);
     }
 
     @Override

@@ -19,6 +19,8 @@ package com.pingcap.tikv.meta;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.collect.Iterables;
+import com.pingcap.tidb.tipb.TableInfo;
 
 import java.util.List;
 
@@ -110,5 +112,12 @@ public class TiTableInfo {
 
     public long getOldSchemaId() {
         return oldSchemaId;
+    }
+
+    public TableInfo toProto() {
+        return TableInfo.newBuilder()
+                .setTableId(getId())
+                .addAllColumns(Iterables.transform(getColumns(), col -> col.toProto()))
+                .build();
     }
 }

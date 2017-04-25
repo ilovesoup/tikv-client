@@ -16,26 +16,25 @@
 package com.pingcap.tikv;
 
 
-import com.google.common.base.Optional;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkArgument;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Range;
 import com.google.protobuf.ByteString;
 import com.pingcap.tidb.tipb.SelectRequest;
-import com.pingcap.tidb.tipb.SelectResponse;
 import com.pingcap.tikv.codec.CodecUtil;
-import com.pingcap.tikv.codec.KeyUtils;
 import com.pingcap.tikv.grpc.Kvrpcpb.KvPair;
-import com.pingcap.tikv.grpc.Metapb.Store;
 import com.pingcap.tikv.grpc.Metapb.Region;
+import com.pingcap.tikv.grpc.Metapb.Store;
+import com.pingcap.tikv.meta.Row;
 import com.pingcap.tikv.meta.TiRange;
 import com.pingcap.tikv.meta.TiTableInfo;
+import com.pingcap.tikv.operation.ScanIterator;
+import com.pingcap.tikv.operation.SelectIterator;
 import com.pingcap.tikv.util.Pair;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.*;
 
 public class Snapshot {
     private final Version version;
@@ -59,6 +58,10 @@ public class Snapshot {
         return session;
     }
 
+    public long getVersion() {
+        return version.getVersion();
+    }
+
     public byte[] get(byte[] key) {
         ByteString keyString = ByteString.copyFrom(key);
         ByteString value = get(keyString);
@@ -73,105 +76,7 @@ public class Snapshot {
         return client.get(key, version.getVersion());
     }
 
-    private class MultiRegionSeqIterator implements Iterator<KvPair> {
-        private List<KvPair>                          currentCache;
-        private ByteString                            startKey;
-        private Optional<TiRange<ByteString>>         keyRange;
-        private int                                   index = -1;
-        private boolean                               eof = false;
-
-        public MultiRegionSeqIterator(ByteString startKey) {
-            this.startKey = startKey;
-        }
-
-        private boolean loadCache() {
-            if (eof) return false;
-
-            Pair<Region, Store> pair = regionCache.getRegionStorePairByKey(startKey);
-            Region region = pair.first;
-            Store store = pair.second;
-            try (RegionStoreClient client =
-                         RegionStoreClient.create(region, store, getSession())) {
-                currentCache = client.scan(startKey, version.getVersion());
-                if (currentCache == null || currentCache.size() == 0) {
-                    return false;
-                }
-                index = 0;
-                // Session should be single-threaded itself
-                // so that we don't worry about conf change in the middle
-                // of a transaction. Otherwise below code might lose data
-                if (currentCache.size() < conf.getScanBatchSize()) {
-                    // Current region done, start new batch from next region
-                    startKey = region.getEndKey();
-                    if (startKey.size() == 0 || !contains(startKey)) {
-                        eof = true;
-                    }
-                } else {
-                    // Start new scan from exact next key in current region
-                    ByteString lastKey = currentCache
-                            .get(currentCache.size() - 1)
-                            .getKey();
-                    startKey = KeyUtils.getNextKeyInByteOrder(lastKey);
-                }
-            } catch (Exception e) {
-                throw new TiClientInternalException("Error Closing Store client.", e);
-            }
-            return true;
-        }
-
-        @Override
-        public boolean hasNext() {
-            if (index == -1 || index >= currentCache.size()) {
-                if (!loadCache()) {
-                    eof = true;
-                    return false;
-                }
-            }
-            if (!contains(currentCache.get(index).getKey())) {
-                eof = true;
-                return false;
-            }
-            return true;
-        }
-
-        private boolean contains(ByteString key) {
-            if (keyRange.isPresent() &&
-                !keyRange.get().contains(key)) {
-                return false;
-            }
-            return true;
-        }
-
-        private KvPair getCurrent() {
-            if (eof) {
-                throw new NoSuchElementException();
-            }
-            if (index < currentCache.size()) {
-                KvPair kv = currentCache.get(index++);
-                if (!contains(kv.getKey())) {
-                    eof = true;
-                    throw new NoSuchElementException();
-                }
-                return kv;
-            }
-            return null;
-        }
-
-        @Override
-        public KvPair next() {
-            KvPair kv = getCurrent();
-            if (kv == null) {
-                // cache drained
-                if (!loadCache()) {
-                    return null;
-                }
-                return getCurrent();
-            }
-            return kv;
-        }
-    }
-
-    public Iterator<SelectResponse> select(TiTableInfo table, SelectRequest req, List<TiRange<Long>> ranges) {
+    public Iterator<Row> select(TiTableInfo table, SelectRequest req, List<TiRange<Long>> ranges) {
         ImmutableList.Builder<TiRange<ByteString>> builder = ImmutableList.builder();
         for (TiRange<Long> r : ranges) {
             ByteString lowKey = CodecUtil.encodeRowKeyWithHandle(table.getId(), r.getLowValue());
@@ -180,14 +85,18 @@ public class Snapshot {
             builder.add(TiRange.createByteStringRange(lowKey, highKey));
         }
         List<TiRange<ByteString>> keyRanges = builder.build();
-        MultiRegionSeqIterator
+        return new SelectIterator(req, keyRanges, getSession(), regionCache);
     }
 
     public Iterator<KvPair> scan(ByteString startKey) {
-        return new MultiRegionSeqIterator(startKey);
+        return new ScanIterator(startKey,
+                conf.getScanBatchSize(),
+                null,
+                session,
+                regionCache,
+                version.getVersion());
     }
 
-    // TODO: Do we really need to transfer key again?
     // TODO: Need faster implementation, say concurrent version
     // Assume keys sorted
     public List<KvPair> batchGet(List<ByteString> keys) {
@@ -222,7 +131,68 @@ public class Snapshot {
         return result;
     }
 
+    public SelectBuilder newSelect() {
+        return new SelectBuilder(this);
+    }
 
+    public static class SelectBuilder {
+        private static long MASK_IGNORE_TRUNCATE     = 0x1;
+        private static long MASK_TRUNC_AS_WARNING    = 0x2;
+
+        private final Snapshot snapshot;
+        private final SelectRequest.Builder builder;
+        private final ImmutableList.Builder<TiRange<Long>> rangeListBuilder;
+        private TiTableInfo table;
+
+        private TiSession getSession() {
+            return snapshot.getSession();
+        }
+
+        private TiConfiguration getConf() {
+            return getSession().getConf();
+        }
+
+        private SelectBuilder(Snapshot snapshot) {
+            this.snapshot = snapshot;
+            this.builder = SelectRequest.newBuilder();
+            this.rangeListBuilder = ImmutableList.builder();
+
+            long flags = 0;
+            if (getConf().isIgnoreTruncate()) {
+                flags |= MASK_IGNORE_TRUNCATE;
+            } else if (getConf().isTruncateAsWarning()) {
+                flags |= MASK_TRUNC_AS_WARNING;
+            }
+            builder.setFlags(flags);
+            builder.setStartTs(snapshot.getVersion());
+            // Set default timezone offset
+            TimeZone tz = TimeZone.getDefault();
+            builder.setTimeZoneOffset(tz.getOffset(new Date().getTime()) / 1000);
+        }
+
+        public SelectBuilder setTimeZoneOffset(long offset) {
+            builder.setTimeZoneOffset(offset);
+            return this;
+        }
+
+        public SelectBuilder setTable(TiTableInfo table) {
+            this.table = table;
+            builder.setTableInfo(table.toProto());
+            return this;
+        }
+
+        public SelectBuilder addRange(TiRange<Long> keyRange) {
+            rangeListBuilder.add(keyRange);
+            return this;
+        }
+
+        public Iterator<Row> doSelect() {
+            checkNotNull(table);
+            List<TiRange<Long>> ranges = rangeListBuilder.build();
+            checkArgument(ranges.size() > 0);
+            return snapshot.select(table, builder.build(), ranges);
+        }
+    }
 
     public static class Version {
         public static Version getCurrentTSAsVersion() {

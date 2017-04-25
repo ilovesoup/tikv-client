@@ -20,7 +20,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableMap;
 import com.pingcap.tidb.tipb.ColumnInfo;
-import com.pingcap.tikv.TiClientInternalException;
 import com.pingcap.tikv.type.FieldType;
 import com.pingcap.tikv.type.LongType;
 import com.pingcap.tikv.type.StringType;
@@ -126,6 +125,16 @@ public class TiColumnInfo {
             this.elems = elems;
         }
 
+        public InternalTypeHolder(ColumnInfo c) {
+            this.tp = c.getTp();
+            this.flag = c.getFlag();
+            this.flen = c.getColumnLen();
+            this.decimal = c.getDecimal();
+            this.charset = "";
+            this.collate = Collation.translate(c.getCollation());
+            this.elems = c.getElemsList();
+        }
+
         public int getTp() {
             return tp;
         }
@@ -157,7 +166,8 @@ public class TiColumnInfo {
         public FieldType toFieldType() {
             Builder<? extends FieldType> builder = typeBuilder.get(getTp());
             if (builder == null) {
-                throw new TiClientInternalException("Invalid type code: " + getTp());
+                // throw new TiClientInternalException("Invalid Field Type code: " + getTp());
+                return null;
             }
             return builder.build(this);
         }
@@ -170,10 +180,13 @@ public class TiColumnInfo {
     public ColumnInfo.Builder toProtoBuilder() {
         return ColumnInfo.newBuilder()
                 .setColumnId(id)
+                .setTp(type.getTypeFlag())
                 .setCollation(type.getCollationCode())
                 .setColumnLen(type.getLength())
                 .setDecimal(type.getDecimal())
                 .setFlag(type.getFlag())
+                .setColumnLen(type.getLength())
+                .setPkHandle(isPrimaryKey())
                 .addAllElems(type.getElems());
     }
 }

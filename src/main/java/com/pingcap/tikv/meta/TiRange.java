@@ -16,7 +16,9 @@
 package com.pingcap.tikv.meta;
 
 
+import com.google.common.base.Optional;
 import com.google.protobuf.ByteString;
+import com.pingcap.tidb.tipb.KeyRange;
 
 import java.util.Comparator;
 
@@ -26,6 +28,10 @@ public class TiRange<E> {
     private final boolean leftOpen;
     private final boolean rightOpen;
     private Comparator<E> comparator;
+
+    public static <T> TiRange create(T l, T h, boolean lopen, boolean ropen, Comparator<T> c) {
+        return new TiRange(l, h, lopen, ropen, c);
+    }
 
     public static <T extends Comparable<T>> TiRange create(T l, T h) {
         return new TiRange(l, h, false, true, Comparator.naturalOrder());
@@ -60,15 +66,7 @@ public class TiRange<E> {
     }
 
     public boolean contains(E v) {
-        if (isLeftOpen() && comparator.compare(getLowValue(), v) == 0 ||
-                isRightOpen() && comparator.compare(getHighValue(), v) == 0) {
-            return false;
-        }
-        if (comparator.compare(getLowValue(), v) < 0 ||
-                comparator.compare(v, getHighValue()) > 0) {
-            return false;
-        }
-        return true;
+        return compare(v) == 0;
     }
 
     public boolean isLeftOpen() {
@@ -77,5 +75,52 @@ public class TiRange<E> {
 
     public boolean isRightOpen() {
         return rightOpen;
+    }
+
+    public Comparator<E> getComparator() {
+        return comparator;
+    }
+
+    public int compare(E v) {
+        if (!isLeftOpen()  && comparator.compare(getLowValue(), v) == 0 ||
+            !isRightOpen() && comparator.compare(getHighValue(), v) == 0) {
+            return 0;
+        }
+        if (comparator.compare(getLowValue(), v) >= 0) {
+            return -1;
+        }
+        if (comparator.compare(getHighValue(), v) <= 0) {
+            return 1;
+        }
+        return 0;
+    }
+
+    @Override
+    public String toString() {
+        String lowStr = getLowValue().toString();
+        String highStr = getHighValue().toString();
+        if (lowVal.getClass().equals(ByteString.class)) {
+            lowStr = ((ByteString)lowVal).toStringUtf8();
+            highStr = ((ByteString)highVal).toStringUtf8();
+        }
+        return String.format("%s%s,%s%s", isLeftOpen()? "(" : "[",
+                                          lowStr, highStr,
+                                          isRightOpen() ? ")" : "]");
+    }
+
+    public static class CutResult<E> {
+        public final Optional<TiRange<E>> left;
+        public final Optional<TiRange<E>> mid;
+        public final Optional<TiRange<E>> right;
+
+        private CutResult(TiRange<E> left, TiRange<E> mid, TiRange<E> right) {
+            this.left = Optional.fromNullable(left);
+            this.mid = Optional.fromNullable(mid);
+            this.right = Optional.fromNullable(right);
+        }
+
+        public static <E> CutResult<E> create(TiRange<E> left, TiRange<E> mid, TiRange<E> right) {
+            return new CutResult<>(left, mid, right);
+        }
     }
 }

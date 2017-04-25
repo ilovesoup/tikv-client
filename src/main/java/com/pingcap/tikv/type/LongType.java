@@ -22,10 +22,9 @@ import com.pingcap.tikv.meta.TiColumnInfo;
 
 public class LongType extends FieldType {
     private final boolean varLength;
-    private int flag;
 
     private static int UNSIGNED_FLAG = 32;
-    public static final int TYPE_CODE = 1;
+    public static final int TYPE_CODE = 3;
 
     public static final LongType DEF_VLONG = new LongType();
 
@@ -43,7 +42,7 @@ public class LongType extends FieldType {
     }
 
     protected boolean isUnsigned() {
-        return (flag & UNSIGNED_FLAG) == 0;
+        return (flag & UNSIGNED_FLAG) != 0;
     }
 
     @Override
@@ -82,6 +81,6 @@ public class LongType extends FieldType {
 
     @Override
     public String toString() {
-        return isUnsigned() ? "Unsigned" : "Signed" + "_LongType";
+        return (isUnsigned() ? "Unsigned" : "Signed") + "_LongType";
     }
 }

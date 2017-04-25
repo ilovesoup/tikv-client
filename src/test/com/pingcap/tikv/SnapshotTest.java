@@ -16,17 +16,12 @@
 package com.pingcap.tikv;
 
 import com.google.common.collect.ImmutableList;
-import com.google.protobuf.ByteString;
+import com.pingcap.tidb.tipb.SelectRequest;
 import com.pingcap.tikv.catalog.Catalog;
-import com.pingcap.tikv.codec.CodecDataInput;
-import com.pingcap.tikv.codec.CodecDataOutput;
-import com.pingcap.tikv.codec.CodecUtil;
-import com.pingcap.tikv.codec.DefaultRowReader;
 import com.pingcap.tikv.meta.DBInfo;
 import com.pingcap.tikv.meta.Row;
+import com.pingcap.tikv.meta.TiRange;
 import com.pingcap.tikv.meta.TiTableInfo;
-import com.pingcap.tikv.type.FieldType;
-import com.pingcap.tikv.type.LongType;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -34,7 +29,10 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.junit.Test;
 
+import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
+import java.util.TimeZone;
 
 
 public class SnapshotTest {
@@ -63,6 +61,12 @@ public class SnapshotTest {
             }
         }
 
+        Iterator<Row> it = snapshot.newSelect()
+                .addRange(TiRange.create(0L, Long.MAX_VALUE))
+                .setTable(table)
+                .doSelect();
+
+        List<Row> rows = ImmutableList.copyOf(it);
 
         return;
     }

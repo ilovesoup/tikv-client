@@ -17,8 +17,10 @@ package com.pingcap.tikv.type;
 
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.pingcap.tikv.TiClientInternalException;
 import com.pingcap.tikv.codec.CodecDataInput;
+import com.pingcap.tikv.meta.Collation;
 import com.pingcap.tikv.meta.Row;
 import com.pingcap.tikv.meta.TiColumnInfo;
 
@@ -26,20 +28,26 @@ import java.util.List;
 
 public abstract class FieldType {
     private static final byte NULL_FLAG = 0;
-    public static final int DEF_COLLATION_CODE = 83;
     public static final int UNSPECIFIED_LEN = -1;
 
-    private final int           flag;
-    private final List<String>  elems;
+    protected final int           flag;
+    protected final int           collation;
+    protected final int           length;
+    private   final List<String>  elems;
 
     protected FieldType(TiColumnInfo.InternalTypeHolder holder) {
         this.flag = holder.getFlag();
-        this.elems = holder.getElems();
+        this.length = holder.getFlen();
+        this.collation = Collation.translate(holder.getCollate());
+        this.elems = holder.getElems() == null ?
+                            ImmutableList.of() : holder.getElems();
     }
 
     protected FieldType() {
         this.flag = 0;
         this.elems = ImmutableList.of();
+        this.length = UNSPECIFIED_LEN;
+        this.collation = Collation.DEF_COLLATION_CODE;
     }
 
     protected abstract void decodeValueNoNullToRow(CodecDataInput cdi, Row row, int pos);
@@ -65,11 +73,11 @@ public abstract class FieldType {
     public abstract String toString();
 
     public int getCollationCode() {
-        return DEF_COLLATION_CODE;
+        return collation;
     }
 
     public int getLength() {
-        return UNSPECIFIED_LEN;
+        return length;
     }
 
     public int getDecimal() {

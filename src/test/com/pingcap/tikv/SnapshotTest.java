@@ -16,7 +16,6 @@
 package com.pingcap.tikv;
 
 import com.google.common.collect.ImmutableList;
-import com.pingcap.tidb.tipb.SelectRequest;
 import com.pingcap.tikv.catalog.Catalog;
 import com.pingcap.tikv.meta.DBInfo;
 import com.pingcap.tikv.meta.Row;
@@ -29,10 +28,8 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.junit.Test;
 
-import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
-import java.util.TimeZone;
 
 
 public class SnapshotTest {
@@ -45,11 +42,10 @@ public class SnapshotTest {
         ctx.updateLoggers();
 
         TiConfiguration conf = TiConfiguration.createDefault(ImmutableList.of("127.0.0.1:" + 2379));
-        TiSession session = TiSession.create(conf);
-        PDClient client = PDClient.createRaw(session);
-        RegionManager mgr = new RegionManager(client);
-        Snapshot snapshot = new Snapshot(mgr, session);
-        Catalog cat = new Catalog(snapshot);
+        TiCluster cluster = TiCluster.getCluster(conf);
+        Snapshot snapshot = cluster.createSnapshot();
+        Catalog cat = cluster.getCatalog();
+
         List<DBInfo> dbInfoList = cat.listDatabases();
         TiTableInfo table = null;
         for (DBInfo dbInfo : dbInfoList) {

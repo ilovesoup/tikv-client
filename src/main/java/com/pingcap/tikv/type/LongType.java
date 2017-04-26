@@ -75,7 +75,7 @@ public class LongType extends FieldType {
     }
 
     @Override
-    public int getTypeFlag() {
+    public int getTypeCode() {
         return TYPE_CODE;
     }
 

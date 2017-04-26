@@ -16,8 +16,6 @@
 package com.pingcap.tikv.meta;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.google.common.collect.Lists;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
@@ -28,7 +26,7 @@ public class DBInfoTest {
     public void testSerialize() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         String json = "{\"id\":1,\"db_name\":{\"O\":\"test\",\"L\":\"test\"},\"charset\":\"utf8\",\"collate\":\"utf8_bin\",\"state\":5}";
-        DBInfo dbInfo = mapper.readValue(json, DBInfo.class);
+        TiDBInfo dbInfo = mapper.readValue(json, TiDBInfo.class);
         assertEquals(dbInfo.getId(), 1);
         assertEquals(dbInfo.getName(), "test");
         assertEquals(dbInfo.getCharset(), "utf8");

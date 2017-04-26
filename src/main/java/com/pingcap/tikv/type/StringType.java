@@ -41,7 +41,7 @@ public class StringType extends FieldType {
         return "StringType";
     }
 
-    public int getTypeFlag() {
+    public int getTypeCode() {
         return TYPE_CODE;
     }
 }

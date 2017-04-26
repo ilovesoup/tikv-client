@@ -27,7 +27,7 @@ public class TiIndexInfo {
     private final long                  id;
     private final String                name;
     private final String                tableName;
-    private final List<IndexColumn>     indexColumns;
+    private final List<TiIndexColumn>     indexColumns;
     private final boolean               isUnique;
     private final boolean               isPrimary;
     private final SchemaState           schemaState;
@@ -38,7 +38,7 @@ public class TiIndexInfo {
     public TiIndexInfo(@JsonProperty("id")long                       id,
                        @JsonProperty("idx_name")CIStr                name,
                        @JsonProperty("tbl_name")CIStr                tableName,
-                       @JsonProperty("idx_cols")List<IndexColumn>    indexColumns,
+                       @JsonProperty("idx_cols")List<TiIndexColumn>    indexColumns,
                        @JsonProperty("is_unique")boolean             isUnique,
                        @JsonProperty("is_primary")boolean            isPrimary,
                        @JsonProperty("state")int                     schemaState,
@@ -67,7 +67,7 @@ public class TiIndexInfo {
         return tableName;
     }
 
-    public List<IndexColumn> getIndexColumns() {
+    public List<TiIndexColumn> getIndexColumns() {
         return indexColumns;
     }
 

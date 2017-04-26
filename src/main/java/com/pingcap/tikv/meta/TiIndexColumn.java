@@ -19,15 +19,15 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 
-public class IndexColumn {
+public class TiIndexColumn {
     private String name;
     private int    offset;
     private int    length;
 
     @JsonCreator
-    public IndexColumn(@JsonProperty("name")CIStr   name,
-                       @JsonProperty("offset")int   offset,
-                       @JsonProperty("length")int   length) {
+    public TiIndexColumn(@JsonProperty("name")CIStr   name,
+                         @JsonProperty("offset")int   offset,
+                         @JsonProperty("length")int   length) {
         this.name = name.getL();
         this.offset = offset;
         this.length = length;

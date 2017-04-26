@@ -23,7 +23,7 @@ import com.google.protobuf.ByteString;
 import com.pingcap.tikv.Snapshot;
 import com.pingcap.tikv.TiClientInternalException;
 import com.pingcap.tikv.codec.KeyUtils;
-import com.pingcap.tikv.meta.DBInfo;
+import com.pingcap.tikv.meta.TiDBInfo;
 import com.pingcap.tikv.meta.TiTableInfo;
 import com.pingcap.tikv.util.TiFluentIterable;
 import org.apache.logging.log4j.LogManager;
@@ -45,19 +45,19 @@ public class Catalog {
         trx = new CatalogTrasaction(snapshot);
     }
 
-    public List<DBInfo> listDatabases() {
-        Iterable<DBInfo> iter =
+    public List<TiDBInfo> listDatabases() {
+        Iterable<TiDBInfo> iter =
                 TiFluentIterable.from(trx.hashGetFields(KEY_DB))
-                                .transform(kv -> parseFromJson(kv.second, DBInfo.class));
+                                .transform(kv -> parseFromJson(kv.second, TiDBInfo.class));
 
         return ImmutableList.copyOf(iter);
     }
 
-    public DBInfo getDatabase(long id) {
+    public TiDBInfo getDatabase(long id) {
         return getDatabase(encodeId(id));
     }
 
-    public List<TiTableInfo> listTables(DBInfo db) {
+    public List<TiTableInfo> listTables(TiDBInfo db) {
         ByteString dbKey = encodeId(db.getId());
         if (databaseExists(dbKey)) {
             throw new TiClientInternalException("Database not exists: " + db.getName());
@@ -71,10 +71,10 @@ public class Catalog {
         return ImmutableList.copyOf(iter);
     }
 
-    public DBInfo getDatabase(ByteString dbKey) {
+    public TiDBInfo getDatabase(ByteString dbKey) {
         try {
             ByteString json = trx.hashGet(KEY_DB, dbKey);
-            return parseFromJson(json, DBInfo.class);
+            return parseFromJson(json, TiDBInfo.class);
         } catch (Exception e) {
             // TODO: Handle key not exists and let loose others
             return null;

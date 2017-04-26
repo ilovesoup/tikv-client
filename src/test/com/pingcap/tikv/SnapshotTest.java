@@ -17,7 +17,7 @@ package com.pingcap.tikv;
 
 import com.google.common.collect.ImmutableList;
 import com.pingcap.tikv.catalog.Catalog;
-import com.pingcap.tikv.meta.DBInfo;
+import com.pingcap.tikv.meta.TiDBInfo;
 import com.pingcap.tikv.meta.Row;
 import com.pingcap.tikv.meta.TiRange;
 import com.pingcap.tikv.meta.TiTableInfo;
@@ -46,9 +46,9 @@ public class SnapshotTest {
         Snapshot snapshot = cluster.createSnapshot();
         Catalog cat = cluster.getCatalog();
 
-        List<DBInfo> dbInfoList = cat.listDatabases();
+        List<TiDBInfo> dbInfoList = cat.listDatabases();
         TiTableInfo table = null;
-        for (DBInfo dbInfo : dbInfoList) {
+        for (TiDBInfo dbInfo : dbInfoList) {
             List<TiTableInfo> tableInfoList = cat.listTables(dbInfo);
             for (TiTableInfo t : tableInfoList) {
                 if (t.getName().equals("t2")) {

@@ -180,7 +180,7 @@ public class TiColumnInfo {
     public ColumnInfo.Builder toProtoBuilder() {
         return ColumnInfo.newBuilder()
                 .setColumnId(id)
-                .setTp(type.getTypeFlag())
+                .setTp(type.getTypeCode())
                 .setCollation(type.getCollationCode())
                 .setColumnLen(type.getLength())
                 .setDecimal(type.getDecimal())

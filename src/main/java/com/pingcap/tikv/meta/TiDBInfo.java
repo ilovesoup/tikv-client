@@ -20,7 +20,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 
-public class DBInfo {
+public class TiDBInfo {
     private long                id;
     private String              name;
     private String              charset;
@@ -29,12 +29,12 @@ public class DBInfo {
     private SchemaState         schemaState;
 
     @JsonCreator
-    public DBInfo(@JsonProperty("id")long               id,
-                  @JsonProperty("db_name")CIStr         name,
-                  @JsonProperty("charset")String        charset,
-                  @JsonProperty("collate")String        collate,
-                  @JsonProperty("-")List<TiTableInfo>     tables,
-                  @JsonProperty("state")int             schemaState) {
+    public TiDBInfo(@JsonProperty("id")long               id,
+                    @JsonProperty("db_name")CIStr         name,
+                    @JsonProperty("charset")String        charset,
+                    @JsonProperty("collate")String        collate,
+                    @JsonProperty("-")List<TiTableInfo>     tables,
+                    @JsonProperty("state")int             schemaState) {
         this.id = id;
         this.name = name.getL();
         this.charset = charset;

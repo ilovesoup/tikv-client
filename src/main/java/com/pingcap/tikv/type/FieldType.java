@@ -17,7 +17,6 @@ package com.pingcap.tikv.type;
 
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.pingcap.tikv.TiClientInternalException;
 import com.pingcap.tikv.codec.CodecDataInput;
 import com.pingcap.tikv.meta.Collation;
@@ -27,8 +26,8 @@ import com.pingcap.tikv.meta.TiColumnInfo;
 import java.util.List;
 
 public abstract class FieldType {
-    private static final byte NULL_FLAG = 0;
-    public static final int UNSPECIFIED_LEN = -1;
+    protected static final byte   NULL_FLAG = 0;
+    protected static final int    UNSPECIFIED_LEN = -1;
 
     protected final int           flag;
     protected final int           collation;
@@ -92,5 +91,5 @@ public abstract class FieldType {
         return this.elems;
     }
 
-    public abstract int getTypeFlag();
+    public abstract int getTypeCode();
 }

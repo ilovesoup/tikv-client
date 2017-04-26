@@ -27,15 +27,12 @@ public class DBInfoTest {
     @Test
     public void testSerialize() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
-        String json = "{\n" +
-                "\t\"id\": 1,\n" +
-                "\t\"db_name\": \"testDb\",\n" +
-                "\t\"charset\": \"utf8\",\n" +
-                "\t\"collate\": \"x\",\n" +
-                "\t\"-\": [{\"id\": 11, \"name\": \"testtable\", \"charset\": \"utf9\", \"collate\": \"x\"}, \n" +
-                "\t\t  {\"id\": 12, \"name\": \"testtable1\", \"charset\": \"utf10\", \"collate\": \"x\"}],\n" +
-                "\t\"state\": 1\n" +
-                "}";
+        String json = "{\"id\":1,\"db_name\":{\"O\":\"test\",\"L\":\"test\"},\"charset\":\"utf8\",\"collate\":\"utf8_bin\",\"state\":5}";
         DBInfo dbInfo = mapper.readValue(json, DBInfo.class);
+        assertEquals(dbInfo.getId(), 1);
+        assertEquals(dbInfo.getName(), "test");
+        assertEquals(dbInfo.getCharset(), "utf8");
+        assertEquals(dbInfo.getCollate(), "utf8_bin");
+        assertEquals(dbInfo.getSchemaState(), SchemaState.StatePublic);
     }
 }

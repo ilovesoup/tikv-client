@@ -25,6 +25,7 @@ import java.io.DataOutputStream;
 // A trivial implementation supposed to be replaced
 public class CodecDataOutput implements DataOutput {
     private DataOutputStream s;
+    // TODO: Switch to ByteBuffer if possible, or a chain of ByteBuffer
     private ByteArrayOutputStream byteArray;
     public CodecDataOutput() {
         byteArray = new ByteArrayOutputStream();

@@ -14,11 +14,7 @@
  */
 
 package com.pingcap.tikv.meta;
-
-
-import com.google.common.base.Optional;
 import com.google.protobuf.ByteString;
-import com.pingcap.tidb.tipb.KeyRange;
 
 import java.util.Comparator;
 
@@ -106,21 +102,5 @@ public class TiRange<E> {
         return String.format("%s%s,%s%s", isLeftOpen()? "(" : "[",
                                           lowStr, highStr,
                                           isRightOpen() ? ")" : "]");
-    }
-
-    public static class CutResult<E> {
-        public final Optional<TiRange<E>> left;
-        public final Optional<TiRange<E>> mid;
-        public final Optional<TiRange<E>> right;
-
-        private CutResult(TiRange<E> left, TiRange<E> mid, TiRange<E> right) {
-            this.left = Optional.fromNullable(left);
-            this.mid = Optional.fromNullable(mid);
-            this.right = Optional.fromNullable(right);
-        }
-
-        public static <E> CutResult<E> create(TiRange<E> left, TiRange<E> mid, TiRange<E> right) {
-            return new CutResult<>(left, mid, right);
-        }
     }
 }

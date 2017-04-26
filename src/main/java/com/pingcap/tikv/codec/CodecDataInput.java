@@ -23,21 +23,23 @@ import java.io.DataInputStream;
 
 
 public class CodecDataInput implements DataInput {
-    private DataInputStream s;
-    private int size;
+    private final DataInputStream       inputStream;
+    private final ByteArrayInputStream  backingStream;
+    private final byte[]                backingBuffer;
 
     public CodecDataInput(ByteString data) {
         this(data.toByteArray());
     }
 
     public CodecDataInput(byte[] buf) {
-        size = buf.length;
-        s = new DataInputStream(new ByteArrayInputStream(buf));
+        backingBuffer = buf;
+        backingStream = new ByteArrayInputStream(buf);
+        inputStream = new DataInputStream(backingStream);
     }
     @Override
     public void readFully(byte[] b) {
         try {
-            s.readFully(b);
+            inputStream.readFully(b);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -46,7 +48,7 @@ public class CodecDataInput implements DataInput {
     @Override
     public void readFully(byte[] b, int off, int len) {
         try {
-            s.readFully(b, off, len);
+            inputStream.readFully(b, off, len);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -55,7 +57,7 @@ public class CodecDataInput implements DataInput {
     @Override
     public int skipBytes(int n) {
         try {
-            return s.skipBytes(n);
+            return inputStream.skipBytes(n);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -64,7 +66,7 @@ public class CodecDataInput implements DataInput {
     @Override
     public boolean readBoolean() {
         try {
-            return s.readBoolean();
+            return inputStream.readBoolean();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -73,7 +75,7 @@ public class CodecDataInput implements DataInput {
     @Override
     public byte readByte() {
         try {
-            return s.readByte();
+            return inputStream.readByte();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -82,7 +84,7 @@ public class CodecDataInput implements DataInput {
     @Override
     public int readUnsignedByte() {
         try {
-            return s.readUnsignedByte();
+            return inputStream.readUnsignedByte();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -91,7 +93,7 @@ public class CodecDataInput implements DataInput {
     @Override
     public short readShort() {
         try {
-            return s.readShort();
+            return inputStream.readShort();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -100,7 +102,7 @@ public class CodecDataInput implements DataInput {
     @Override
     public int readUnsignedShort() {
         try {
-            return s.readUnsignedShort();
+            return inputStream.readUnsignedShort();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -109,7 +111,7 @@ public class CodecDataInput implements DataInput {
     @Override
     public char readChar() {
         try {
-            return s.readChar();
+            return inputStream.readChar();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -118,7 +120,7 @@ public class CodecDataInput implements DataInput {
     @Override
     public int readInt() {
         try {
-            return s.readInt();
+            return inputStream.readInt();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -127,7 +129,7 @@ public class CodecDataInput implements DataInput {
     @Override
     public long readLong() {
         try {
-            return s.readLong();
+            return inputStream.readLong();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -136,7 +138,7 @@ public class CodecDataInput implements DataInput {
     @Override
     public float readFloat() {
         try {
-            return s.readFloat();
+            return inputStream.readFloat();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -145,7 +147,7 @@ public class CodecDataInput implements DataInput {
     @Override
     public double readDouble() {
         try {
-            return s.readDouble();
+            return inputStream.readDouble();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -154,7 +156,7 @@ public class CodecDataInput implements DataInput {
     @Override
     public String readLine() {
         try {
-            return s.readLine();
+            return inputStream.readLine();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -163,14 +165,14 @@ public class CodecDataInput implements DataInput {
     @Override
     public String readUTF() {
         try {
-            return s.readUTF();
+            return inputStream.readUTF();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     public boolean eof() {
-        return false;
+        return backingStream.available() == 0;
     }
-    public int size() { return size;}
+    public int size() { return backingBuffer.length;}
 }

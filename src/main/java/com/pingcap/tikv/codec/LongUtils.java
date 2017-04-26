@@ -123,7 +123,7 @@ public class LongUtils {
                 }
                 return x | b << s;
             }
-            x |= b & 0x7f << s;
+            x |= (b & 0x7f) << s;
             s += 7;
         }
         return 0;
